@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Welcome — {{ org_name or 'Org Insights' }}</title>
+
+  <!-- Theme (dark/light) applied ASAP to avoid flash -->
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}" />
+
+  <style>
+    .shell{
+      max-width: 1200px;
+      margin: 26px auto 60px;
+      padding: 0 24px;
+    }
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 14px;
+    }
+    .brand{
+      display:inline-flex;
+      align-items:center;
+      gap: 10px;
+      text-decoration:none;
+      color: var(--text-strong);
+      font-weight: 900;
+      letter-spacing: -.02em;
+    }
+    .brand-badge{
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+  box-shadow: 0 12px 28px rgba(16,185,129,.18);
+    }
+
+    .layout{
+      margin-top: 18px;
+      display:grid;
+      grid-template-columns: 1.45fr .95fr;
+      gap: 14px;
+      align-items: start;
+    }
+    @media (max-width: 980px){
+      .layout{ grid-template-columns: 1fr; }
+    }
+
+    .hero{
+      text-align:left;
+      margin-top: 6px;
+    }
+    .hero h1{
+      font-size: clamp(34px, 4.2vw, 56px);
+      line-height: 1.02;
+      margin: 0;
+      font-weight: 950;
+      letter-spacing: -.03em;
+    }
+    .hero h1 .accent{
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .hero p{
+      margin: 12px 0 0;
+      max-width: 68ch;
+      color: var(--text-muted);
+      font-size: 15px;
+      line-height: 1.75;
+      font-weight: 650;
+    }
+
+    .features{
+      margin-top: 16px;
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 10px;
+    }
+    @media (max-width: 520px){
+      .features{ grid-template-columns: 1fr; }
+    }
+    .f{
+      border-radius: 16px;
+      border: 1px solid var(--stroke);
+      background: color-mix(in oklab, var(--card) 75%, transparent);
+      padding: 12px;
+    }
+    .f .t{ font-weight: 900; color: var(--text-strong); }
+    .f .d{ margin-top: 6px; color: var(--text-muted); font-weight: 650; font-size: 13px; line-height: 1.6; }
+
+    .signin h2{
+      margin:0;
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: -.01em;
+      color: var(--text-strong);
+    }
+    .signin .sub{
+      margin-top: 6px;
+      color: var(--text-muted);
+      font-weight: 650;
+      line-height: 1.6;
+      font-size: 13px;
+    }
+
+    label{
+      display:block;
+      margin: 12px 0 6px;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    textarea.field{ min-height: 140px; resize: vertical; }
+
+    .footnote{
+      margin-top: 10px;
+      color: var(--text-faint);
+      font-size: 12px;
+      line-height: 1.6;
+      font-weight: 650;
+    }
+    .footnote code{
+      color: var(--text);
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.10);
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+
+    .alerts{ margin-top: 12px; }
+    .alert{
+      margin: 10px 0 0;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255,77,77,0.08);
+      color: #ffb4b4;
+      border: 1px solid rgba(255,77,77,0.12);
+      font-weight: 650;
+      line-height: 1.6;
+    }
+
+    html[data-theme="light"] .alert{
+      background: rgba(255,77,77,0.10);
+      color: rgba(120, 20, 40, .95);
+      border-color: rgba(120, 20, 40, .18);
+    }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+
+  <div class="shell">
+    <div class="topbar">
+      <a class="brand" href="{{ url_for('home') }}" aria-label="Home">
+        <span class="brand-badge" aria-hidden="true"></span>
+        <span>{{ org_name or 'Org Insights' }}</span>
+      </a>
+
+      <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" title="Toggle light/dark">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Z" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M12 2v2.5M12 19.5V22M4.22 4.22l1.77 1.77M18.01 18.01l1.77 1.77M2 12h2.5M19.5 12H22M4.22 19.78l1.77-1.77M18.01 5.99l1.77-1.77" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <span data-theme-label>Dark</span>
+      </button>
+    </div>
+
+    <div class="layout">
+      <!-- LEFT: What the app is -->
+      <section class="card pad">
+        <div class="hero">
+          <h1>
+            Understand your org —
+            <span class="accent">fast</span>, clear, and visual.
+          </h1>
+          <p>
+            This web app connects to <strong>{{ org_name or 'your organization' }}</strong> via Microsoft Graph and helps you explore
+            people insights: departments, locations, cities, countries, and reporting hierarchy.
+            You can also open any profile and drill into managers / direct reportees.
+          </p>
+
+          <div class="features" aria-label="Key features">
+            <div class="f">
+              <div class="t">Insights</div>
+              <div class="d">Department & location distribution + country map highlighting with employee count and share.</div>
+            </div>
+            <div class="f">
+              <div class="t">Hierarchy</div>
+              <div class="d">Teams-like drill-down hierarchy: click any person to view their tree.</div>
+            </div>
+            <div class="f">
+              <div class="t">Data Explorer</div>
+              <div class="d">Search and export employee fields with filters (department, designation, location, city).</div>
+            </div>
+            <div class="f">
+              <div class="t">Org Simulator</div>
+              <div class="d">Simulate removals to see orphans, isolation, and connectivity impact (no deletions).</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT: Sign-in box -->
+      <aside class="card pad signin">
+        <h2>Sign in</h2>
+        <div class="sub">Use your organization email and a Microsoft Graph access token.</div>
+
+        <div class="alerts" aria-live="polite">
+          {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+              {% for category, msg in messages %}
+                <div class="alert">{{ msg }}</div>
+              {% endfor %}
+            {% endif %}
+          {% endwith %}
+        </div>
+
+        <form method="post" action="{{ url_for('login') }}" style="margin-top: 10px;">
+          <label for="email">Organization Email</label>
+          <input id="email" class="field" name="email" type="email" placeholder="you@company.com" value="{{ email or '' }}" required
+                 autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="email">
+
+          <label for="token">Access Token</label>
+          <textarea id="token" class="field" name="token" placeholder="Paste a valid Microsoft Graph access token here" required></textarea>
+
+          <div style="margin-top: 12px; display:flex; gap: 10px; flex-wrap: wrap;">
+            <button type="submit" class="btn" style="flex:1">Validate & Continue</button>
+          </div>
+
+          <div class="footnote">
+            We call Microsoft Graph <code>/v1.0/me</code> with your token and confirm it matches your email.
+            Tokens are stored only in your session.
+          </div>
+        </form>
+      </aside>
+    </div>
+
+    <div class="meta" style="margin-top: 14px; text-align:center;">
+      © {{ org_name or 'Your Company' }}
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const e = document.getElementById('email');
+      if (!e) return;
+      e.setAttribute('autocomplete','off');
+      e.setAttribute('autocapitalize','off');
+      e.setAttribute('autocorrect','off');
+      e.setAttribute('spellcheck','false');
+    })();
+  </script>
+</body>
+</html>

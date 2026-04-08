@@ -1,0 +1,206 @@
+{# Shared app navbar (landing-style). Include with: {% include '_navbar.html' %} #}
+<nav class="navbar" id="navbar">
+  <div class="nav-left">
+    <a href="{{ url_for('root') }}" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit">
+      <svg class="nav-logo" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="5" r="2.5" fill="#2f6bff"/>
+        <circle cx="5" cy="19" r="2.5" fill="#4aa3ff"/>
+        <circle cx="19" cy="19" r="2.5" fill="#4aa3ff"/>
+        <line x1="12" y1="7.5" x2="5" y2="16.5" stroke="#2f6bff" stroke-width="1.5" opacity="0.6"/>
+        <line x1="12" y1="7.5" x2="19" y2="16.5" stroke="#2f6bff" stroke-width="1.5" opacity="0.6"/>
+      </svg>
+      <span class="nav-brand">Nexus</span>
+    </a>
+  </div>
+
+  <div class="nav-links" role="navigation" aria-label="Primary">
+    {% if session.get('user') %}
+      <a href="{{ url_for('dashboard') }}" class="nav-link{% if request.endpoint == 'dashboard' %} active{% endif %}" {% if request.endpoint == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
+      <a href="{{ url_for('employees') }}" class="nav-link{% if request.endpoint == 'employees' %} active{% endif %}" {% if request.endpoint == 'employees' %}aria-current="page"{% endif %}>DataExplorer</a>
+      <a href="{{ url_for('hierarchy') }}" class="nav-link{% if request.endpoint == 'hierarchy' %} active{% endif %}" {% if request.endpoint == 'hierarchy' %}aria-current="page"{% endif %}>Hierarchy</a>
+      <a href="{{ url_for('insights') }}" class="nav-link{% if request.endpoint == 'insights' %} active{% endif %}" {% if request.endpoint == 'insights' %}aria-current="page"{% endif %}>Insights</a>
+      <a href="{{ url_for('profile') }}" class="nav-link{% if request.endpoint == 'profile' %} active{% endif %}" {% if request.endpoint == 'profile' %}aria-current="page"{% endif %}>Profile</a>
+    {% else %}
+      <a href="{{ url_for('root') }}#features" class="nav-link{% if request.endpoint == 'root' %} active{% endif %}" {% if request.endpoint == 'root' %}aria-current="page"{% endif %}>Features</a>
+      <a href="{{ url_for('root') }}#how" class="nav-link{% if request.endpoint == 'root' %} active{% endif %}" {% if request.endpoint == 'root' %}aria-current="page"{% endif %}>How It Works</a>
+    {% endif %}
+
+    <button id="themeToggle" class="theme-toggle" type="button" aria-pressed="false" title="Toggle light/dark">
+      <span class="theme-icon sun" aria-hidden="true">☀️</span>
+      <span class="theme-icon moon" aria-hidden="true">🌙</span>
+      <span data-theme-label>Dark</span>
+    </button>
+
+    {% if session.get('user') %}
+      <div class="nav-user" id="navUser">
+        <button class="user-btn" id="userMenuBtn" type="button" aria-haspopup="menu" aria-expanded="false" title="Account">
+          <svg class="user-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Z" stroke="currentColor" stroke-width="1.8" />
+            <path d="M20 20a8 8 0 0 0-16 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+        </button>
+
+        <div class="user-menu" id="userMenu" role="menu" aria-label="Account menu" hidden>
+          <div class="user-name">
+            {{ session.get('user', {}).get('display_name') or session.get('user', {}).get('email') or 'Signed in' }}
+          </div>
+          <div class="user-meta" data-token-expiry-line>
+            Token expires in: <strong data-token-left>—</strong>
+            <span class="at" data-token-at style="display:none"></span>
+          </div>
+          <div class="user-actions">
+            <form method="post" action="{{ url_for('logout') }}" style="margin:0">
+              <button type="submit" class="menu-logout">Logout</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <a href="{{ url_for('login') }}" class="nav-cta">Sign In &rarr;</a>
+    {% endif %}
+  </div>
+</nav>
+
+<script>
+  (function(){
+    const btn = document.getElementById('userMenuBtn');
+    const menu = document.getElementById('userMenu');
+    const wrap = document.getElementById('navUser');
+    if (!btn || !menu || !wrap) return;
+
+    function close(){
+      menu.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+    }
+
+    function open(){
+      menu.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+    }
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = !menu.hidden;
+      if (isOpen) close(); else open();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!wrap.contains(e.target)) close();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') close();
+    });
+  })();
+</script>
+
+<script>
+  // Global token countdown for navbar (works on every page)
+  (function(){
+    const exp = JSON.parse('{{ session.get("token_exp")|default(none)|tojson }}');
+    const leftEl = document.querySelector('[data-token-left]');
+    const atEl = document.querySelector('[data-token-at]');
+    if (!leftEl) return;
+    if (!exp || typeof exp !== 'number'){
+      leftEl.textContent = '—';
+      if (atEl) atEl.style.display = 'none';
+      return;
+    }
+
+    function fmt(secs){
+      const s = Math.max(0, Math.floor(secs));
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const ss = s % 60;
+      if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m`;
+      if (m > 0) return `${m}m ${String(ss).padStart(2,'0')}s`;
+      return `${ss}s`;
+    }
+
+    const at = new Date(exp * 1000);
+    if (atEl){
+      atEl.style.display = '';
+      atEl.textContent = ` • at ${at.toLocaleString()}`;
+    }
+
+    function ensureToastEl(){
+      let t = document.getElementById('tokenWarnToast');
+      if (t) return t;
+      t = document.createElement('div');
+      t.id = 'tokenWarnToast';
+      t.setAttribute('role', 'status');
+      t.setAttribute('aria-live', 'polite');
+      t.style.position = 'fixed';
+      t.style.right = '16px';
+      t.style.bottom = '16px';
+      t.style.zIndex = '99999';
+      t.style.maxWidth = '420px';
+      t.style.padding = '12px 14px';
+      t.style.borderRadius = '14px';
+      t.style.border = '1px solid rgba(245,158,11,.22)';
+      t.style.background = 'rgba(245,158,11,.12)';
+      t.style.color = 'var(--text-strong)';
+      t.style.boxShadow = 'var(--shadow)';
+      t.style.backdropFilter = 'blur(10px)';
+      t.style.webkitBackdropFilter = 'blur(10px)';
+      t.style.display = 'none';
+      t.style.fontWeight = '800';
+      t.style.lineHeight = '1.4';
+
+      const body = document.createElement('div');
+      body.className = 'msg';
+      t.appendChild(body);
+
+      const row = document.createElement('div');
+      row.style.marginTop = '10px';
+      row.style.display = 'flex';
+      row.style.gap = '10px';
+      row.style.justifyContent = 'flex-end';
+      row.style.flexWrap = 'wrap';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'OK';
+      btn.style.padding = '9px 12px';
+      btn.style.borderRadius = '12px';
+      btn.style.border = '1px solid rgba(255,255,255,.14)';
+      btn.style.background = 'rgba(255,255,255,.06)';
+      btn.style.color = 'var(--text-strong)';
+      btn.style.cursor = 'pointer';
+      btn.style.fontWeight = '900';
+      btn.addEventListener('click', () => { t.style.display = 'none'; });
+
+      row.appendChild(btn);
+      t.appendChild(row);
+
+      document.body.appendChild(t);
+      return t;
+    }
+
+    // Fire once per expiry timestamp.
+    const WARN_THRESHOLD_SECS = 5*60;
+    const storageKey = `tokenWarned:${exp}`;
+
+    function tick(){
+      const now = Date.now() / 1000;
+      const left = exp - now;
+      leftEl.textContent = fmt(left);
+
+      if (left > 0 && left <= WARN_THRESHOLD_SECS) {
+        let warned = false;
+        try { warned = sessionStorage.getItem(storageKey) === '1'; } catch {}
+        if (!warned) {
+          try { sessionStorage.setItem(storageKey, '1'); } catch {}
+
+          const t = ensureToastEl();
+          const msg = t.querySelector('.msg');
+          if (msg) msg.textContent = `Your session will expire in ${fmt(left)}. Please refresh your token soon.`;
+          t.style.display = 'block';
+        }
+      }
+    }
+
+    tick();
+    setInterval(tick, 1000);
+  })();
+</script>

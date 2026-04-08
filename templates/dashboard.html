@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Dashboard</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <!-- Theme (dark/light) applied ASAP to avoid flash -->
+    <script src="{{ url_for('static', filename='theme.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+
+    <style>
+      /* Make dashboard feel like the landing page (hero-style) without adding new cards. */
+      .container{ margin-top: 0; }
+
+      .dash-hero{
+        position:relative;
+        padding: 56px 0 22px;
+      }
+      .dash-hero::before{
+        content:"";
+        position:absolute;
+        inset:-80px -40px auto -40px;
+        height: 520px;
+        pointer-events:none;
+        background:
+          radial-gradient(900px 520px at 18% 18%, rgba(74, 163, 255,.22), transparent 60%),
+          radial-gradient(780px 520px at 82% 28%, rgba(47, 107, 255,.26), transparent 62%),
+          radial-gradient(900px 620px at 50% 100%, rgba(128, 92, 255,.16), transparent 64%);
+        filter: blur(30px);
+        opacity: .95;
+        z-index:0;
+      }
+
+      /* ===== Animations (landing-like, subtle) ===== */
+      @keyframes fadeUp{
+        from{ opacity:0; transform: translateY(16px); }
+        to{ opacity:1; transform: translateY(0); }
+      }
+      @keyframes shimmer{
+        0%{ background-position: 0% 50%; }
+        50%{ background-position: 100% 50%; }
+        100%{ background-position: 0% 50%; }
+      }
+
+      .anim-fade-up{ opacity:0; animation: fadeUp .7s ease-out forwards; }
+      .anim-d1{ animation-delay: .06s; }
+      .anim-d2{ animation-delay: .14s; }
+      .anim-d3{ animation-delay: .22s; }
+      .anim-d4{ animation-delay: .30s; }
+
+      /* Soft moving glow behind hero (very subtle) */
+      .dash-hero::before{
+        background-size: 140% 140%;
+        animation: shimmer 9s ease-in-out infinite;
+      }
+
+      /* Tiles: a tiny sheen sweep + staggered entrance */
+      a.tile{ will-change: transform; }
+      a.tile::after{
+        content:"";
+        position:absolute;
+        inset:-2px;
+        pointer-events:none;
+        background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,.12) 45%, transparent 60%);
+        transform: translateX(-60%);
+        opacity: .0;
+      }
+      a.tile:hover::after{
+        opacity: .9;
+        animation: tileSheen .9s ease-out;
+      }
+      @keyframes tileSheen{
+        from{ transform: translateX(-60%); }
+        to{ transform: translateX(60%); }
+      }
+
+      @media (prefers-reduced-motion: reduce){
+        .anim-fade-up{ opacity:1; animation:none; }
+        .dash-hero::before{ animation:none; }
+        a.tile:hover::after{ animation:none; }
+      }
+
+      .dash-topbar{
+        display:flex;
+        align-items:center;
+        justify-content:flex-end;
+        gap: 10px;
+        position:relative;
+        z-index:1;
+      }
+
+      .dash-head{
+        display:flex;
+        align-items:center;
+        justify-content:flex-start;
+        gap: 18px;
+        margin-top: 16px;
+        position:relative;
+        z-index:1;
+      }
+      @media (max-width: 820px){
+        .dash-head{ flex-direction:column; align-items:flex-start; }
+      }
+
+      .dash-title h1{
+        margin: 0;
+        font-size: clamp(34px, 4.8vw, 56px);
+        line-height: 1.02;
+        letter-spacing: -.03em;
+      }
+      .dash-title .sub{
+        margin-top: 8px;
+        color: var(--text-soft);
+        line-height: 1.6;
+        max-width: 820px;
+        font-size: 0.98rem;
+      }
+
+      /* Token strip (dashboard-only quick access) */
+      .token-strip{
+        margin-top: 14px;
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid var(--stroke);
+        background: rgba(255,255,255,.06);
+        box-shadow: 0 14px 40px rgba(0,0,0,.18);
+      }
+      html[data-theme="light"] .token-strip{
+        background: rgba(255,255,255,.85);
+        box-shadow: 0 14px 40px rgba(8,18,38,.08);
+      }
+      .token-strip .meta{ color: var(--text-soft); font-weight: 650; }
+      .token-strip strong{ color: var(--text-strong); }
+      .token-strip .actions{ display:flex; align-items:center; gap: 10px; }
+      .token-strip .logout{
+        display:inline-flex;
+        align-items:center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(239,68,68,.40);
+        background: rgba(239,68,68,.16);
+        color: color-mix(in oklab, var(--text-strong) 85%, #fff);
+        cursor: pointer;
+        font-weight: 800;
+      }
+      html[data-theme="light"] .token-strip .logout{
+        border-color: rgba(220,38,38,.35);
+        background: rgba(220,38,38,.10);
+        color: #7a0b0b;
+      }
+      .token-strip .logout:hover{
+        transform: translateY(-1px);
+        border-color: rgba(239,68,68,.65);
+        background: rgba(239,68,68,.22);
+      }
+      .token-strip .logout:active{ transform: translateY(0px); }
+
+      /* Keep dashboard tiles (no new cards), just spacing + landing-like rhythm */
+      .grid{
+        display:grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap:1rem;
+        margin-top: 18px;
+      }
+      @media (max-width: 760px){
+        .grid{ grid-template-columns: 1fr; }
+      }
+      a.tile{
+        display:block;
+        text-decoration:none;
+        color: var(--text-strong);
+        background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.10));
+        border:1px solid var(--stroke);
+        padding:1.05rem;
+        border-radius: 14px;
+        box-shadow: 0 14px 40px rgba(0,0,0,.25);
+        transition: transform .12s ease, border-color .12s ease, background .12s ease;
+        position:relative;
+        overflow:hidden;
+      }
+      a.tile::before{
+        content:"";
+        position:absolute;
+        inset:-2px;
+        background:
+          radial-gradient(600px 180px at 18% 20%, rgba(47,107,255,.22), transparent 60%),
+          radial-gradient(500px 220px at 88% 78%, rgba(74,163,255,.18), transparent 60%);
+        opacity:.9;
+        pointer-events:none;
+      }
+      a.tile > *{ position:relative; }
+      a.tile:hover {
+        transform: translateY(-3px);
+        border-color: rgba(74,163,255,.30);
+        background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.12));
+      }
+      a.tile h3{ margin:0; font-size: 1.05rem; letter-spacing:-.01em; }
+      .tile-sub { color: var(--text-muted); margin-top:6px; font-size:0.95rem; line-height:1.5; }
+
+      .profile-row { display:flex; align-items:center; gap:1rem; margin:1rem 0; flex-wrap:wrap; }
+      .profile-row .info { flex:1 1 220px; min-width:0; }
+      .profile-photo {
+        width:128px;
+        height:128px;
+        object-fit:cover;
+        border-radius: 18px;
+        box-shadow: 0 18px 55px rgba(0,0,0,.45);
+        border: 1px solid rgba(255,255,255,.14);
+        background: rgba(0,0,0,.18);
+        flex:0 0 auto;
+      }
+      .welcome-accent{
+        display:inline-block;
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+        -webkit-background-clip:text;
+        background-clip:text;
+        color: transparent;
+        font-weight: 900;
+      }
+
+      /* Dashboard main section: make it feel like a hero surface, not a "big card" */
+      .dash-card{
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        padding: 0;
+      }
+
+      html[data-theme="light"] a.tile{
+        background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(236,242,255,.82));
+        box-shadow: 0 14px 40px rgba(8,18,38,.10);
+      }
+      html[data-theme="light"] a.tile:hover{
+        background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(236,242,255,.88));
+      }
+
+      /* Modal (dashboard-specific) */
+      .modal-backdrop{
+        position: fixed; inset: 0;
+         background: rgba(0,0,0,.55);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        display:none;
+        z-index: 99999;
+        align-items:center;
+        justify-content:center;
+        padding: 16px;
+      }
+        html[data-theme="light"] .modal-backdrop{ background: rgba(0,0,0,.35); }
+
+        .modal{
+          width:min(560px, 96vw);
+          background: color-mix(in srgb, var(--card) 92%, transparent);
+          border: 1px solid var(--stroke);
+          border-radius: 14px;
+          box-shadow: 0 20px 60px rgba(0,0,0,.55);
+          padding: 14px;
+          backdrop-filter: blur(10px);
+          color: var(--text-strong);
+        }
+  .modal h3{ margin:0; font-size:16px; font-weight:750; color: var(--text-strong); }
+  .modal p{ margin:8px 0 0; color: var(--text-soft); font-size:13px; font-weight:550; line-height:1.6; }
+      .modal .field{
+        width:100%;
+        margin-top: 12px;
+        padding: 12px 12px;
+        border-radius: 12px;
+        background: var(--field);
+        border: 1px solid var(--stroke);
+        color: var(--text-strong);
+        font-size: 13px;
+      }
+      .modal .actions{ display:flex; gap:10px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap; }
+      .modal .err{ margin-top:10px; color: var(--danger); font-size:12.5px; font-weight:600; display:none; }
+    </style>
+</head>
+<body>
+    {% include '_navbar.html' %}
+    <div class="container">
+        <section class="dash-hero">
+          <div class="dash-head anim-fade-up anim-d1">
+            <img class="profile-photo" src="{{ url_for('profile_photo_user') }}" alt="Profile Photo">
+            <div class="dash-title">
+              <h1>Welcome, <span class="welcome-accent">{{ user.display_name or 'User' }}</span></h1>
+              <div class="sub">Signed in as: <strong style="color:var(--text-strong)">{{ user.email }}</strong> 
+                 <p>Explore your organization with rich profiles, hierarchy view, data explorer, and insights  all in one place.</p>
+            </div>
+          </div>
+
+          <div class="token-strip anim-fade-up anim-d2" aria-label="Session controls">
+            <div class="meta">
+              ⏳ Token expires in: <strong id="dashTokenLeft">—</strong>
+            </div>
+            <div class="actions">
+              <form method="post" action="{{ url_for('logout') }}" style="margin:0">
+                <button type="submit" class="logout">🚪 Logout</button>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <div class="dash-card">
+
+      <div class="grid">
+        <a class="tile anim-fade-up anim-d1" href="{{ url_for('profile') }}">
+          <h3>👤 Profile</h3>
+                    <p class="tile-sub">View a Teams/Graph-backed profile slide with charts, cards and timeline.</p>
+                </a>
+        <a class="tile anim-fade-up anim-d2" href="{{ url_for('hierarchy') }}">
+          <h3>🧭 Organization: Hierarchy</h3>
+                    <p class="tile-sub">View the organization hierarchy (upward / downward).</p>
+                </a>
+
+        <a class="tile anim-fade-up anim-d3" href="{{ url_for('employees') }}">
+          <h3>🗂️ DataExplorer</h3>
+                    <p class="tile-sub">Explore employee data and find people quickly.</p>
+                </a>
+
+        <a class="tile anim-fade-up anim-d4" href="{{ url_for('insights') }}">
+          <h3>📈 Insights</h3>
+                    <p class="tile-sub">Filters, charts, and report export in your selected theme.</p>
+                </a>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Token refresh modal -->
+    <div id="tokenModalBackdrop" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="tokenModalTitle">
+      <div class="modal">
+        <h3 id="tokenModalTitle">Session expired</h3>
+        <p>Your access token has expired. Enter a new token to continue.</p>
+        <textarea id="newTokenInput" class="field" rows="5" placeholder="Paste new Microsoft Graph access token"></textarea>
+        <div id="tokenModalErr" class="err"></div>
+        <div class="actions">
+          <button id="tokenModalLogout" class="btn ghost" type="button">Logout</button>
+          <button id="tokenModalSave" class="btn" type="button">Save token</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Ensure tokenExp is always valid JS (number or null) by encoding via tojson.
+      const tokenExp = JSON.parse('{{ session.get("token_exp")|default(none)|tojson }}');
+
+      // Dashboard token strip countdown
+      (function(){
+        const el = document.getElementById('dashTokenLeft');
+        if (!el) return;
+
+        if (!tokenExp || typeof tokenExp !== 'number'){
+          el.textContent = '—';
+          return;
+        }
+
+        function fmt(secs){
+          const s = Math.max(0, Math.floor(secs));
+          const h = Math.floor(s / 3600);
+          const m = Math.floor((s % 3600) / 60);
+          const ss = s % 60;
+          if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m`;
+          if (m > 0) return `${m}m ${String(ss).padStart(2,'0')}s`;
+          return `${ss}s`;
+        }
+
+        function tick(){
+          const now = Date.now()/1000;
+          const left = tokenExp - now;
+          el.textContent = fmt(left);
+        }
+        tick();
+        setInterval(tick, 1000);
+      })();
+
+      const backdrop = document.getElementById('tokenModalBackdrop');
+      const inputEl = document.getElementById('newTokenInput');
+      const errEl = document.getElementById('tokenModalErr');
+      const btnSave = document.getElementById('tokenModalSave');
+      const btnLogout = document.getElementById('tokenModalLogout');
+
+      async function refreshToken(newToken){
+        const res = await fetch("{{ url_for('token_refresh') }}", {
+          method: "POST",
+          headers: {
+            "Content-Type":"application/json",
+            "Accept":"application/json"
+          },
+          body: JSON.stringify({ token: newToken })
+        });
+
+        // Robust parsing: server might return HTML if something intercepts/redirects.
+        const txt = await res.text();
+        let data;
+        try { data = JSON.parse(txt); } catch { data = { ok:false, error: txt || "Invalid response" }; }
+
+        if (!res.ok || !data.ok){
+          throw new Error(data.error || ("Refresh failed (HTTP " + res.status + ")"));
+        }
+        return data;
+      }
+
+      function openTokenModal(){
+        if (!backdrop) return;
+        backdrop.style.display = "flex";
+        setTimeout(() => inputEl && inputEl.focus(), 40);
+      }
+
+      function showErr(msg){
+        if (!errEl) return;
+        errEl.textContent = msg;
+        errEl.style.display = "block";
+      }
+
+      function clearErr(){
+        if (!errEl) return;
+        errEl.textContent = "";
+        errEl.style.display = "none";
+      }
+
+      function isExpired(exp){
+        if (exp === null) return false;
+        const now = Math.floor(Date.now()/1000);
+        return now >= Number(exp);
+      }
+
+      // Open popup immediately if expired (so user can continue)
+      if (isExpired(tokenExp)) openTokenModal();
+
+      btnSave && btnSave.addEventListener("click", async () => {
+        clearErr();
+        const newToken = (inputEl && inputEl.value ? inputEl.value : "").trim();
+        if (!newToken){
+          showErr("Please paste a token.");
+          return;
+        }
+
+        btnSave.disabled = true;
+        try{
+          await refreshToken(newToken);
+
+          // IMPORTANT: After refresh, go back to where user wanted to go (or just reload dashboard)
+          const next = sessionStorage.getItem("nextAfterTokenRefresh");
+          sessionStorage.removeItem("nextAfterTokenRefresh");
+
+          window.location.href = next || "{{ url_for('dashboard') }}";
+        }catch(e){
+          showErr(String(e && e.message ? e.message : e));
+        }finally{
+          btnSave.disabled = false;
+        }
+      });
+
+      btnLogout && btnLogout.addEventListener("click", () => {
+        const f = document.createElement("form");
+        f.method = "POST";
+        f.action = "{{ url_for('logout') }}";
+        document.body.appendChild(f);
+        f.submit();
+      });
+
+      // If user gets redirected to dashboard due to expiry, remember the page they came from
+      // so after refresh we can continue.
+      (function rememberNext(){
+        // If you're already on dashboard, nothing to remember.
+        // But if server redirected here, referrer will likely have the blocked URL.
+        try{
+          const ref = document.referrer || "";
+          const here = window.location.href;
+          if (ref && ref !== here && !ref.includes("/login") && !ref.includes("/dashboard")){
+            sessionStorage.setItem("nextAfterTokenRefresh", ref);
+          }
+        }catch{}
+      })();
+    </script>
+</body>
+</html>

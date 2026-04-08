@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  
+  <title>Organization Hierarchy</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- Theme (dark/light) applied ASAP to avoid flash -->
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+
+  <style>
+    .page-head{
+      margin-top: 22px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 14px;
+      flex-wrap:wrap;
+    }
+    .page-title{
+      margin:0;
+      font-size: clamp(24px, 3vw, 38px);
+      line-height: 1.05;
+      letter-spacing: -.03em;
+      font-weight: 800; /* reduced */
+    }
+    .toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
+    /* Live search suggestions (same UX as Org Simulator) */
+    .searchWrap{ position:relative; }
+    .suggestions{
+      position:absolute;
+      left:0; right:0;
+      top: calc(100% + 6px);
+      z-index: 99999;
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+      overflow:hidden;
+      max-height: 320px;
+      overflow-y:auto;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .suggestionItem{
+      padding: 10px 12px;
+      cursor:pointer;
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+    }
+  .suggestionItem:hover{ background: var(--glass); }
+    .suggestionName{ font-weight: 900; }
+    .suggestionMeta{ opacity:.82; font-size: 12px; }
+
+    .search-card{ margin-top: 14px; overflow: visible; position: relative; z-index: 50; }
+    .search-grid{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items:center;
+    }
+    @media (max-width: 980px){ .search-grid{ grid-template-columns: 1fr; } }
+
+    .controls-row{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .seg{
+      display:inline-flex;
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius: 999px;
+      padding: 4px;
+      gap: 6px;
+    }
+    .seg label{ display:inline-flex; align-items:center; cursor:pointer; user-select:none; }
+    .seg input{ display:none; }
+    .seg span{
+      display:inline-flex; align-items:center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-weight: 650; /* reduced */
+  color: var(--text-soft);
+      white-space:nowrap;
+    }
+    .seg input:checked + span{
+      background: linear-gradient(135deg, rgba(47,107,255,.92), rgba(74,163,255,.92));
+      color: #071225;
+      box-shadow: 0 10px 24px rgba(47,107,255,.22);
+    }
+
+    /* compact field picker */
+    .fields-picker{ position:relative; z-index: 2000; }
+    .picker-toggle{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      cursor:pointer;
+      color: var(--text);
+      font-weight: 650; /* reduced */
+    }
+    .picker-menu{
+      position:absolute;
+      right:0;
+      top: calc(100% + 10px);
+      width: min(360px, 92vw);
+  background: color-mix(in oklab, var(--card) 90%, transparent);
+      border-radius: 16px;
+      padding: 12px;
+  border: 1px solid var(--border);
+      box-shadow: 0 20px 60px rgba(0,0,0,.55);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 99999; /* ensure above cards */
+      isolation: isolate;
+    }
+    .picker-search{ width:100%; margin-bottom:10px; }
+    .picker-list{
+      max-height: 260px;
+      overflow:auto;
+      border:1px solid var(--border);
+      border-radius: 14px;
+      padding: 6px;
+      background: var(--card);
+    }
+    .picker-list label{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      padding: 10px 10px;
+      border-radius: 12px;
+      cursor:pointer;
+  color: var(--text);
+      font-weight: 550; /* reduced */
+    }
+  .picker-list label:hover{ background: var(--glass); }
+    .picker-actions{
+      display:flex;
+      justify-content:flex-end;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    #selectedChips{ margin-top: 12px; }
+
+    .content{
+      margin-top: 14px;
+      display:grid;
+      grid-template-columns: 1fr 360px;
+      gap: 14px;
+      align-items:start;
+      position: relative;
+      z-index: 1;
+    }
+    @media (max-width: 980px){ .content{ grid-template-columns: 1fr; } }
+
+    #hierarchyContainer{
+      padding: 16px;
+      border-radius: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+      min-height: 260px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .chain{ display:flex; flex-direction:column; gap: 14px; align-items:center; width:100%; }
+    .chain-item{ width:100%; max-width: 860px; margin:0 auto; }
+
+    .chip-node{
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 16px;
+      padding: 14px;
+      box-shadow: 0 18px 55px rgba(0,0,0,.35);
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    }
+
+    /* Make whole node clickable (Teams-like drill down) */
+    .chip-node{ position: relative; }
+    .chip-node .stretchedLink{
+      position:absolute;
+      inset: 0;
+      z-index: 2;
+      border-radius: 16px;
+      text-decoration:none;
+      color: inherit;
+      background: transparent;
+    }
+    /* Keep content above the stretched link for text selection + accessibility */
+    .chip-node > :not(.stretchedLink){ position: relative; z-index: 3; }
+    /* Ensure inner anchors (like the title link) don't double-navigate weirdly */
+    .chip-node .nodeLink{ position: relative; z-index: 4; }
+    .chip-node:hover{
+      transform: translateY(-3px);
+      border-color: rgba(74,163,255,.28);
+      background: linear-gradient(180deg, rgba(47,107,255,.10), rgba(255,255,255,.04));
+    }
+  .title{ font-size: 18px; font-weight: 800; letter-spacing:-.01em; color: var(--text-strong); }
+  .subtitle{ margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--text-muted);}
+
+    .node-fields{
+      display:grid;
+      grid-template-columns: 160px 1fr;
+      gap: 8px 12px;
+      margin-top: 12px;
+      align-items:start;
+    }
+    .field-key{
+      color: var(--text-muted);
+      font-weight: 700; /* reduced */
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .field-val{
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 500; /* reduced */
+      word-break: break-word;
+    }
+    @media (max-width: 520px){ .node-fields{ grid-template-columns: 1fr; } }
+
+    .connector{
+      width: 64px;
+      height: 42px;
+      margin: 8px auto 0;
+      position: relative;
+      pointer-events:none;
+      color: transparent;
+      font-size: 0;
+    }
+    .connector::before{
+      content:"";
+      position:absolute;
+      left:50%;
+      top:0;
+      transform: translateX(-50%);
+      width: 6px;
+      height: 66%;
+      background: rgba(255,255,255,.12);
+      border-radius: 6px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.35);
+    }
+    .connector::after{
+      content:"";
+      position:absolute;
+      left:50%;
+      bottom:-1px;
+      transform: translateX(-50%);
+      width:0;height:0;
+      border-left: 10px solid transparent;
+      border-right:10px solid transparent;
+      border-top: 10px solid rgba(255,255,255,.12);
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
+    }
+
+    /* Downward hierarchy: tree view */
+    .down-tree{ margin-top: 10px; }
+    .down-tree .node{ position: relative; }
+
+    /* Container for a node's children */
+    .down-tree .children{
+      margin-left: 22px;
+      padding-left: 18px;
+      display:flex;
+      flex-direction:column;
+      gap: 14px;
+      margin-top: 14px;
+      position: relative;
+    }
+    /* Vertical spine */
+    .down-tree .children::before{
+      content:"";
+      position:absolute;
+      left: 7px;
+      top: 0;
+      bottom: 0;
+      border-left: 1px dashed rgba(255,255,255,.18);
+    }
+
+    /* Each child subtree */
+    .down-tree .children > .down-tree{
+      position: relative;
+    }
+    /* Horizontal connector from spine to child node */
+    .down-tree .children > .down-tree::before{
+      content:"";
+      position:absolute;
+      left: -11px;
+      top: 18px;
+      width: 18px;
+      border-top: 1px dashed rgba(255,255,255,.18);
+    }
+    /* Stop the vertical line after the last child (so it doesn't continue past) */
+    .down-tree .children > .down-tree:last-child::after{
+      content:"";
+      position:absolute;
+      left: -11px;
+      top: 18px;
+      bottom: -14px;
+      width: 18px;
+      background: transparent;
+      border-left: 1px solid transparent;
+    }
+
+    /* Visual cue on hover for clickable nodes */
+    .down-tree .chip-node:hover{
+      border-color: rgba(74,163,255,.32);
+      box-shadow: 0 22px 70px rgba(0,0,0,.42);
+    }
+
+    /* Right card is export beside results */
+    .side{ position: sticky; top: 18px; z-index: 5; }
+    @media (max-width: 980px){ .side{ position: static; } }
+  .side h4{ margin: 0; font-size: 14px; font-weight: 800; color: var(--text-strong); letter-spacing: .02em; }
+    .side .row{ display:flex; align-items:center; justify-content:space-between; gap: 10px; margin-top: 10px; flex-wrap:wrap; }
+  .hint{ margin-top:  10px; color: var(--text-muted); font-weight: 600; font-size: 12px; line-height: 1.6; }
+
+    .mini{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 10px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+  color: var(--text-soft);
+      font-weight: 700; /* reduced */
+      font-size: 12px;
+      white-space:nowrap;
+    }
+
+    /* Top navbar */
+    .top-nav{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      margin-top: 2px;
+    }
+    .top-nav-inner{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      max-width: 100%;
+      overflow:auto;
+    }
+    .top-nav a{
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      padding: 10px 14px;
+      border-radius: 999px;
+  color: var(--text-soft);
+      font-weight: 700; /* reduced */
+      letter-spacing: .01em;
+      white-space: nowrap;
+      border: 1px solid transparent;
+      transition: background .12s ease, border-color .12s ease, transform .12s ease, color .12s ease;
+    }
+    .top-nav a:hover{
+      background: rgba(255,255,255,.07);
+      border-color: rgba(255,255,255,.10);
+      transform: translateY(-1px);
+      color: var(--text-strong);
+    }
+    .top-nav a.active{
+      background: linear-gradient(135deg, rgba(47,107,255,.92), rgba(74,163,255,.92));
+      color: #071225;
+      border-color: rgba(255,255,255,.14);
+      box-shadow: 0 12px 26px rgba(47,107,255,.22);
+      font-weight: 800;
+    }
+    .top-nav .sep{
+      height: 22px;
+      width: 1px;
+      background: rgba(255,255,255,.12);
+      margin: 0 2px;
+      border: none;
+    }
+
+    /* 1) FIX: picker going behind cards (stacking contexts) */
+    .search-card{ overflow: visible; position: relative; z-index: 50; }
+    .fields-picker{ position:relative; z-index: 2000; }
+    .picker-menu{
+      z-index: 99999;
+      position: absolute;
+      isolation: isolate;
+    }
+    /* results/export area should not overlap picker */
+    .content{ position: relative; z-index: 1; }
+
+    /* Some card styles use transform/backdrop-filter which can create stacking contexts.
+       Ensure side + any sticky elements stay below picker. */
+    .side{ z-index: 5; }
+    #hierarchyContainer{ position: relative; z-index: 1; }
+
+    /* 2) Selected columns "chips" too bold -> tone down */
+    #selectedChips .chip{
+      font-weight: 600;           /* reduced */
+      letter-spacing: 0;          /* remove heavy feel */
+    }
+    #selectedChips .chip .remove{
+      font-weight: 700;           /* keep x visible but not too heavy */
+    }
+
+    /* Also keep picker toggle text not too bold */
+    .picker-toggle{ font-weight: 650; }
+    .seg span{ font-weight: 650; }
+
+    /* Optional: make picker list items lighter */
+    .picker-list label{ font-weight: 550; }
+
+    /* Make "Hierarchy" blue in the title */
+    .page-title .accent{
+      color: #4aa3ff;
+      text-shadow: 0 10px 26px rgba(74,163,255,.18);
+    }
+
+    /* Export card typography cleanup */
+    .side h4{
+      font-size: 15px;          /* slightly larger */
+      font-weight: 750;         /* less bold */
+      letter-spacing: .01em;    /* less heavy */
+    }
+    .side .meta{
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .side .row{
+      margin-top: 12px;
+    }
+    .side button.btn{
+      padding: 10px 12px;       /* consistent hit area */
+      font-size: 13px;
+    }
+    .side .hint{
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Selected fields (chips): normal size + not bold */
+    #selectedChips .chip{
+      font-size: 12px;          /* normal / compact */
+      font-weight: 500;         /* not bold */
+      letter-spacing: 0;
+    }
+    #selectedChips .chip .remove{
+      font-weight: 600;         /* subtle emphasis only for the X */
+    }
+
+    /* Export card: improve text sizing + spacing */
+    .side h4{
+      font-size: 16px;          /* clearer heading */
+      font-weight: 750;
+      letter-spacing: .01em;
+    }
+    .side .meta{
+      font-size: 13px;          /* was 12 */
+      font-weight: 600;
+    }
+    .side .row{
+      margin-top: 14px;         /* a bit more breathing room */
+    }
+    .side .hint{
+      font-size: 13px;          /* was 12 */
+      font-weight: 600;
+      line-height: 1.6;
+    }
+    .side button.btn{
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+
+<body>
+  {% include '_navbar.html' %}
+  <div class="container">
+    <div class="page-head">
+      <h1 class="page-title">Organization <span class="accent">Hierarchy</span></h1>
+    </div>
+
+    <div class="card pad search-card">
+      <form id="searchForm" method="POST">
+        <div class="search-grid">
+          <div class="controls-row">
+            <div class="searchWrap" style="flex:1;min-width:240px;">
+    <input class="field" id="emailBox" type="text" name="email" placeholder="user@contoso.com" required
+      value="{{ request.form.email or request.args.get('email') or (hierarchy.get('mail') if hierarchy is mapping else '') or '' }}" style="width:100%">
+              <div id="emailSuggestions" class="suggestions" style="display:none;"></div>
+            </div>
+
+            <div class="seg" role="radiogroup" aria-label="Direction">
+              <label>
+                <input type="radio" name="direction" value="upward"
+                  {% if (direction or request.form.get('direction','upward')) != 'downward' %}checked{% endif %}>
+                <span>Up</span>
+              </label>
+              <label>
+                <input type="radio" name="direction" value="downward"
+                  {% if (direction or request.form.get('direction')) == 'downward' %}checked{% endif %}>
+                <span>Down</span>
+              </label>
+            </div>
+
+            <button class="btn" type="submit">Search</button>
+
+            <div class="fields-picker">
+              <div id="pickerToggle" class="picker-toggle" title="Select fields" aria-haspopup="dialog" aria-expanded="false">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M6 10h12M6 6h12M6 14h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+                <span>Fields</span>
+                <span class="mini"><span id="selectedCount">0</span></span>
+              </div>
+
+              <div id="pickerMenu" class="picker-menu" style="display:none" role="dialog" aria-label="Select fields">
+                <input id="pickerSearch" class="field picker-search" placeholder="Filter fields..." />
+
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:10px">
+                  <label class="meta" style="display:flex;align-items:center;gap:8px;margin:0">
+                    <input id="selectAll" type="checkbox">
+                    Select all
+                  </label>
+                </div>
+
+                <div id="pickerList" class="picker-list">
+                  {% for field, label in available_fields %}
+                    <label data-label="{{ label|lower }}">
+                      <input class="picker-checkbox" type="checkbox" value="{{ field }}"
+                        {% if selected_fields %}
+                          {% if field in selected_fields %}checked{% endif %}
+                        {% else %}
+                          {% if loop.index <= 3 %}checked{% endif %}
+                        {% endif %}
+                      >
+                      <span>{{ label }}</span>
+                    </label>
+                  {% endfor %}
+                </div>
+
+                <div class="picker-actions">
+                  <button id="pickerCancel" class="btn ghost" type="button">Cancel</button>
+                  <button id="pickerApply" class="btn" type="button">Apply</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="chips" id="selectedChips"></div>
+      </form>
+    </div>
+
+    <div class="content" aria-live="polite">
+      <div class="card pad">
+        <div class="meta">Results</div>
+
+        <div id="hierarchyContainer" style="margin-top:12px">
+          {% macro show_fields(obj, fields) -%}
+            <div class="node-fields" aria-hidden="true">
+              {%- for f in fields %}
+                {%- if obj.get(f) is not none and obj.get(f) != '' -%}
+                  <div class="field-key">
+                    {{ (available_fields|selectattr(0,'equalto',f)|list|first)[1] if (available_fields|selectattr(0,'equalto',f)|list|first) else f.replace('_',' ') }}
+                  </div>
+                  <div class="field-val">{{ obj.get(f) }}</div>
+                {%- endif -%}
+              {%- endfor %}
+            </div>
+          {%- endmacro %}
+
+          {% macro render_down(node, fields) -%}
+            <div class="down-tree">
+              <div class="node">
+                <div class="chip-node">
+                  {# Build drill-down link: keep direction + selected fields across clicks #}
+                  {% set _email = (node.get('mail') or node.get('userPrincipalName') or '') %}
+                  {% set _dir = (direction or request.form.get('direction','upward') or request.args.get('direction','upward') or 'upward') %}
+                  {% set _fields = (selected_fields or request.form.getlist('fields') or request.args.getlist('fields') or []) %}
+                  <a class="stretchedLink" href="{{ url_for('hierarchy', email=_email, direction=_dir, fields=_fields) }}" aria-label="Open hierarchy" title="Open hierarchy"></a>
+                  <div class="title">
+                    <a class="nodeLink" href="{{ url_for('hierarchy', email=(node.get('mail') or node.get('userPrincipalName') or ''), direction=(direction or request.form.get('direction','upward') or 'upward')) }}"
+                       title="Open hierarchy" style="color:inherit; text-decoration:none;">
+                      {{ node.get('displayName') or node.get('mail') or node.get('userPrincipalName') or node.get('id') }}
+                    </a>
+                  </div>
+                  <div class="subtitle">{{ node.get('jobTitle') or node.get('department') or '' }}</div>
+                  {{ show_fields(node, fields) }}
+                </div>
+              </div>
+              {% if node.children %}
+                <div class="children">
+                  {% for c in node.children %}
+                    {{ render_down(c, fields) }}
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          {%- endmacro %}
+
+          {% if hierarchy %}
+            {% set fields = selected_fields or request.form.getlist('fields') or ['displayName','mail','jobTitle'] %}
+            {% if (direction or request.form.get('direction','upward')) == 'downward' %}
+              {{ render_down(hierarchy, fields) }}
+            {% else %}
+              {% if hierarchy is mapping %}
+                {% set chain = hierarchy.chain if hierarchy.chain is defined else hierarchy.get('chain') %}
+              {% elif hierarchy is iterable %}
+                {% set chain = hierarchy %}
+              {% else %}
+                {% set chain = None %}
+              {% endif %}
+
+              {% if chain %}
+                <div class="chain" id="chainList">
+                  {% for n in chain %}
+                    <div class="chain-item">
+                      <div class="chip-node {% if loop.last %}target{% endif %}">
+                        {# Build drill-down link: keep direction + selected fields across clicks #}
+                        {% set _email = (n.get('mail') or n.get('userPrincipalName') or '') %}
+                        {% set _dir = (direction or request.form.get('direction','upward') or request.args.get('direction','upward') or 'upward') %}
+                        {% set _fields = (selected_fields or request.form.getlist('fields') or request.args.getlist('fields') or []) %}
+                        <a class="stretchedLink" href="{{ url_for('hierarchy', email=_email, direction=_dir, fields=_fields) }}" aria-label="Open hierarchy" title="Open hierarchy"></a>
+                        <div class="title">
+                          <a class="nodeLink" href="{{ url_for('hierarchy', email=(n.get('mail') or n.get('userPrincipalName') or ''), direction=(direction or request.form.get('direction','upward') or 'upward')) }}"
+                             title="Open hierarchy" style="color:inherit; text-decoration:none;">
+                            {{ n.get('displayName') or n.get('mail') or n.get('userPrincipalName') or n.get('id') }}
+                          </a>
+                        </div>
+                        <div class="subtitle">{{ n.get('jobTitle') or n.get('department') or '' }}</div>
+                        {{ show_fields(n, fields) }}
+                      </div>
+                      {% if not loop.last %}
+                        <div class="connector">↓</div>
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="toast" style="margin-top:10px">No results.</div>
+              {% endif %}
+            {% endif %}
+          {% else %}
+            <div class="toast" style="margin-top:6px">Search to view hierarchy.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Export card BESIDE results -->
+      <aside class="card pad side">
+        <div class="row" style="justify-content:space-between;align-items:flex-start">
+          <div>
+            <h4>Export</h4>
+            <div class="meta" style="margin-top:6px;font-weight:600">CSV or image</div>
+          </div>
+          <span class="badge">Actions</span>
+        </div>
+
+        <hr class="sep">
+
+        <div class="row">
+          <div class="meta" style="font-weight:600">CSV</div>
+          <button id="downloadCsvBtn"  class="btn ghost" type="button">Download</button>
+        </div>
+
+        <div class="row">
+          <div class="meta" style="font-weight:600">Image</div>
+          <button id="downloadImageBtn" class="btn" type="button">Download</button>
+        </div>
+
+        <hr class="sep">
+
+        <div class="hint">Uses current direction + selected fields.</div>
+      </aside>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script>
+    const pickerToggle = document.getElementById('pickerToggle');
+    const pickerMenu = document.getElementById('pickerMenu');
+    const pickerSearch = document.getElementById('pickerSearch');
+    const pickerList = document.getElementById('pickerList');
+    const selectAll = document.getElementById('selectAll');
+    const pickerApply = document.getElementById('pickerApply');
+    const pickerCancel = document.getElementById('pickerCancel');
+    const selectedChips = document.getElementById('selectedChips');
+    const selectedCount = document.getElementById('selectedCount');
+
+    function syncFieldsToForm() {
+      const form = document.getElementById('searchForm');
+      if (!form) return;
+      [...form.querySelectorAll('input[data-generated="true"][name="fields"]')].forEach(i => i.remove());
+      [...document.querySelectorAll('.picker-checkbox:checked')].forEach(cb => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'fields';
+        input.value = cb.value;
+        input.setAttribute('data-generated', 'true');
+        form.appendChild(input);
+      });
+    }
+
+    function updateChips(){
+      if (!selectedChips) return;
+      selectedChips.innerHTML = '';
+      const checked = [...document.querySelectorAll('.picker-checkbox:checked')];
+      if (selectedCount) selectedCount.textContent = checked.length;
+
+      checked.forEach(cb=>{
+        const label = cb.parentNode.textContent.trim();
+        const span = document.createElement('span');
+        span.className='chip';
+        span.innerHTML = `${label} <span class="remove" title="Remove">×</span>`;
+        span.querySelector('.remove').addEventListener('click',()=>{
+          cb.checked=false; updateChips(); syncFieldsToForm();
+        });
+        selectedChips.appendChild(span);
+      });
+    }
+
+    function setPickerExpanded(expanded){
+      if (!pickerToggle) return;
+      pickerToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    }
+
+    pickerToggle && pickerToggle.addEventListener('click',()=>{
+      const open = pickerMenu.style.display !== 'none';
+      pickerMenu.style.display = open ? 'none' : 'block';
+      setPickerExpanded(!open);
+      if (!open) pickerSearch && pickerSearch.focus();
+    });
+
+    pickerCancel && pickerCancel.addEventListener('click',()=>{
+      pickerMenu.style.display='none';
+      setPickerExpanded(false);
+    });
+
+    pickerApply && pickerApply.addEventListener('click',()=>{
+      pickerMenu.style.display='none';
+      setPickerExpanded(false);
+      updateChips();
+      syncFieldsToForm();
+    });
+
+    document.addEventListener('click', (e)=>{
+      if (!pickerMenu || !pickerToggle) return;
+      if (pickerMenu.style.display === 'none') return;
+      const t = e.target;
+      if (pickerMenu.contains(t) || pickerToggle.contains(t)) return;
+      pickerMenu.style.display = 'none';
+      setPickerExpanded(false);
+    });
+
+    document.addEventListener('keydown', (e)=>{
+      if (e.key !== 'Escape') return;
+      if (!pickerMenu) return;
+      if (pickerMenu.style.display === 'none') return;
+      pickerMenu.style.display = 'none';
+      setPickerExpanded(false);
+    });
+
+    pickerSearch && pickerSearch.addEventListener('input', ()=>{
+      const q = pickerSearch.value.trim().toLowerCase();
+      [...pickerList.querySelectorAll('label')].forEach(l=>{
+        const txt = l.getAttribute('data-label') || l.textContent.toLowerCase();
+        l.style.display = txt.indexOf(q)!==-1 ? 'flex' : 'none';
+      });
+    });
+
+    selectAll && selectAll.addEventListener('change',(e)=>{
+      [...document.querySelectorAll('.picker-checkbox')].forEach(cb=>cb.checked=e.target.checked);
+      updateChips();
+      syncFieldsToForm();
+    });
+
+    document.addEventListener('DOMContentLoaded',()=>{
+      updateChips();
+      syncFieldsToForm();
+      setPickerExpanded(false);
+    });
+
+    const searchForm = document.getElementById('searchForm');
+    if (searchForm) {
+      searchForm.addEventListener('submit', function () { syncFieldsToForm(); }, {capture:true});
+    }
+
+    const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+    if (downloadCsvBtn) {
+      downloadCsvBtn.addEventListener('click', function () {
+        syncFieldsToForm();
+        const form = document.getElementById('searchForm');
+        const formData = new FormData(form);
+        const f = document.createElement('form'); f.method='POST'; f.action='/hierarchy/export_csv'; f.style.display='none';
+        for (const pair of formData.entries()) { const i=document.createElement('input'); i.name=pair[0]; i.value=pair[1]; f.appendChild(i); }
+        document.body.appendChild(f); f.submit(); document.body.removeChild(f);
+      });
+    }
+
+    const downloadImageBtn = document.getElementById('downloadImageBtn');
+    if (downloadImageBtn) {
+      downloadImageBtn.addEventListener('click', function () {
+        syncFieldsToForm();
+        const container = document.getElementById('hierarchyContainer');
+        if (!container) { alert('Nothing to capture'); return; }
+        html2canvas(container, {backgroundColor:null,scale:2}).then(canvas=>{
+          canvas.toBlob(function(blob){
+            const url = URL.createObjectURL(blob);
+            const a=document.createElement('a');
+            a.href=url;
+            a.download='hierarchy.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 'image/png');
+        }).catch(()=>alert('Image capture failed'));
+      });
+    }
+
+    // Live user suggestions for the email box (same UX as Org Simulator)
+    (function initEmailSuggestions(){
+      const box = document.getElementById('emailBox');
+      const panel = document.getElementById('emailSuggestions');
+      if (!box || !panel) return;
+
+      let last = [];
+
+      function hide(){
+        panel.style.display = 'none';
+        panel.innerHTML = '';
+      }
+
+      function render(list){
+        panel.innerHTML = '';
+        last = (list || []).slice(0, 25);
+        if (!last.length) { hide(); return; }
+
+        for (const u of last) {
+          const item = document.createElement('div');
+          item.className = 'suggestionItem';
+          item.setAttribute('role','button');
+          item.tabIndex = 0;
+
+          const name = document.createElement('div');
+          name.className = 'suggestionName';
+          name.textContent = u.displayName || u.mail || u.userPrincipalName || '(no name)';
+
+          const meta = document.createElement('div');
+          meta.className = 'suggestionMeta';
+          meta.textContent = [u.mail || u.userPrincipalName, u.jobTitle].filter(Boolean).join(' • ');
+
+          item.appendChild(name);
+          item.appendChild(meta);
+
+          const selectThis = () => {
+            const val = u.mail || u.userPrincipalName || '';
+            if (val) box.value = val;
+            hide();
+          };
+
+          item.addEventListener('mousedown', (e) => { e.preventDefault(); selectThis(); });
+          item.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); selectThis(); } });
+
+          panel.appendChild(item);
+        }
+        panel.style.display = 'block';
+      }
+
+      function debounce(fn, wait){
+        let t;
+        return (...args) => {
+          clearTimeout(t);
+          t = setTimeout(() => fn(...args), wait);
+        };
+      }
+
+      async function fetchSuggestions(q){
+        const t = (q || '').trim();
+        if (!t) return [];
+        const res = await fetch(`{{ url_for('user_search') }}?q=${encodeURIComponent(t)}&limit=25`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Search failed');
+        return data.items || [];
+      }
+
+      const onInput = debounce(async () => {
+        const q = (box.value || '').trim();
+        if (!q) { hide(); return; }
+        try {
+          const items = await fetchSuggestions(q);
+          render(items);
+        } catch {
+          hide();
+        }
+      }, 220);
+
+      box.addEventListener('input', () => onInput());
+      box.addEventListener('focus', () => onInput());
+      box.addEventListener('blur', () => setTimeout(hide, 140));
+
+      document.addEventListener('click', (e) => {
+        if (!panel.contains(e.target) && e.target !== box) hide();
+      });
+    })();
+  </script>
+</body>
+</html>

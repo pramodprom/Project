@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Org Login</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <!-- Theme (dark/light) applied ASAP to avoid flash -->
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <style>
+    /* Simple, clean login that matches the app visual language (blue accent). */
+    :root{
+      --bg:#f8f9fa;
+      --surface:#ffffff;
+      --surface-dim:#edeeef;
+      --on-bg:#191c1d;
+      --on-surface:#3c4a42;
+      /* App-wide blue accent palette (matches static/app.css) */
+      --primary:#1b4fdc;
+      --primary-container:#2f6bff;
+      --outline-variant: rgba(0,0,0,.10);
+      --font: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    /* Dark mode (still supported) */
+    html[data-theme="dark"]{
+      --bg:#061226;
+      --surface: rgba(15, 23, 36, .92);
+      --surface-dim: rgba(255,255,255,.06);
+      --on-bg: rgba(234,240,255,.94);
+      --on-surface: rgba(234,240,255,.78);
+      --outline-variant: rgba(255,255,255,.12);
+    }
+    *{box-sizing:border-box}
+    html,body{
+      height:100%;
+      margin:0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--on-bg);
+      -webkit-font-smoothing: antialiased;
+      overflow-x:hidden;
+    }
+
+    html[data-theme="light"] body::before{
+      opacity: .55;
+      mix-blend-mode: normal;
+    }
+    html[data-theme="light"] body::after{
+      opacity: .08;
+    }
+
+    /* ===== Upgraded vibrant animated background (CSS-only) ===== */
+  /* Background: soft aurora like other pages (blue, clean). */
+    body::before{
+      content:"";
+      position:fixed;
+      inset:-20%;
+      pointer-events:none;
+      background:
+  radial-gradient(680px 520px at 18% 22%, rgba(47,107,255,.16), transparent 60%),
+  radial-gradient(760px 560px at 82% 28%, rgba(74,163,255,.12), transparent 62%),
+  radial-gradient(820px 620px at 50% 92%, rgba(47,107,255,.10), transparent 64%);
+      filter: blur(60px);
+      opacity: .9;
+      transform: translate3d(0,0,0);
+    }
+
+    /* Layer 2: background grid pattern (like landing page) */
+    body::after{
+      content:"";
+      position:fixed;
+      inset:0;
+      pointer-events:none;
+      z-index: 0;
+      background-image:
+        linear-gradient(rgba(47,107,255,.16) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(47,107,255,.16) 1px, transparent 1px);
+      background-size: 60px 60px;
+      opacity: .12;
+      /* landing-like fade from top-left outward */
+      mask-image: radial-gradient(ellipse at top left, black 40%, transparent 90%);
+      -webkit-mask-image: radial-gradient(ellipse at top left, black 40%, transparent 90%);
+    }
+
+    /* Ensure content renders above the fixed background layers */
+    body > *{ position: relative; z-index: 1; }
+
+    /* No heavy animation on login (clean + minimal). */
+    /* ========================================================== */
+
+    /* ===== Subtle login animations (landing-like) ===== */
+    @keyframes fadeUp{
+      from{ opacity:0; transform: translateY(16px); }
+      to{ opacity:1; transform: translateY(0); }
+    }
+    @keyframes fadeIn{
+      from{ opacity:0; }
+      to{ opacity:1; }
+    }
+    @keyframes slideInRight{
+      from{ opacity:0; transform: translateX(18px); }
+      to{ opacity:1; transform: translateX(0); }
+    }
+    @keyframes gridDrift{
+      0%{ transform: translate3d(0,0,0); }
+      50%{ transform: translate3d(14px, -10px, 0); }
+      100%{ transform: translate3d(0,0,0); }
+    }
+
+    .anim-fade-up{ opacity:0; animation: fadeUp .72s ease-out forwards; }
+    .anim-in{ opacity:0; animation: fadeIn .65s ease-out forwards; }
+    .anim-slide-in{ opacity:0; animation: slideInRight .75s ease-out forwards; }
+    .anim-d1{ animation-delay: .06s; }
+    .anim-d2{ animation-delay: .14s; }
+    .anim-d3{ animation-delay: .22s; }
+
+    /* Background: gentle drift for the grid only */
+    body::after{ animation: gridDrift 18s ease-in-out infinite; }
+
+    /* Prefer reduced motion */
+    @media (prefers-reduced-motion: reduce){
+      .anim-fade-up, .anim-in, .anim-slide-in{ opacity:1; animation:none; }
+      body::after{ animation:none; }
+      .mascot{ animation:none; }
+      .buddy::before{ animation:none; }
+      .mascot .armL, .mascot .blink{ animation:none; }
+    }
+
+    .container{
+      width: min(560px, calc(100vw - 2.5rem));
+      margin: 9vh auto;
+      padding: 0;
+      position:relative;
+      isolation:isolate;
+    }
+
+    /* The shared navbar is sticky; give the login panel breathing room below it. */
+    .container{ margin-top: max(9vh, 96px); }
+
+    .panel{
+      padding: 1.5rem;
+      background: var(--surface);
+      border-radius: 16px;
+      border: 1px solid var(--outline-variant);
+      box-shadow: 0 30px 80px rgba(0,0,0,.06),0 4px 20px rgba(0,0,0,.03);
+      position:relative;
+      overflow:hidden;
+    }
+
+    .panel::before{
+      content:"";
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background: radial-gradient(circle at 30% 0%, rgba(47,107,255,.10), transparent 60%);
+    }
+    .panel > *{ position:relative; }
+
+    .meta-row{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+    .logo-circle{
+      width:48px;height:48px;border-radius:14px;
+      background: linear-gradient(135deg, var(--primary-container), var(--primary));
+      display:flex;align-items:center;justify-content:center;
+      color:#fff;font-weight:900;font-size:16px;
+      box-shadow:0 8px 28px rgba(47,107,255,.20);
+    }
+
+    /* Microsoft mark (4 squares) */
+    .ms-mark{
+      width: 22px;
+      height: 22px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 2px;
+      filter: drop-shadow(0 10px 24px rgba(0,0,0,.18));
+    }
+    .ms-mark span{ display:block; border-radius: 2px; }
+    .ms-mark span:nth-child(1){ background:#f25022; }
+    .ms-mark span:nth-child(2){ background:#7fba00; }
+    .ms-mark span:nth-child(3){ background:#00a4ef; }
+    .ms-mark span:nth-child(4){ background:#ffb900; }
+
+    /* Nexus brand mark (shared with navbar/landing) */
+    .nexus-logo{
+      width: 22px;
+      height: 22px;
+      display:block;
+    }
+
+    /* Small helper link inside card */
+    .help-link{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      margin-top: 10px;
+      font-size: .86rem;
+      font-weight: 750;
+      color: var(--on-surface);
+      text-decoration:none;
+    }
+    .help-link:hover{ color: var(--primary); text-decoration: underline; }
+
+  /* Animated character (SVG + CSS), shown on the side for larger screens */
+    .login-wrap{ display:grid; grid-template-columns: 1fr; gap: 18px; align-items:center; }
+    @media (min-width: 980px){
+      .container{ width: min(980px, calc(100vw - 3rem)); }
+      .login-wrap{ grid-template-columns: 1fr 360px; gap: 36px; }
+    }
+    .buddy{
+      display:none;
+      position:relative;
+      align-self: stretch;
+      min-height: 420px;
+      border-radius: 20px;
+      border: 1px solid var(--outline-variant);
+      background: linear-gradient(135deg, rgba(47,107,255,.08), rgba(74,163,255,.04));
+      box-shadow: 0 30px 80px rgba(0,0,0,.06),0 4px 20px rgba(0,0,0,.03);
+      overflow:hidden;
+    }
+    @media (min-width: 980px){ .buddy{ display:block; } }
+    .buddy::before{
+      content:"";
+      position:absolute;
+      inset:-20%;
+      background:
+        radial-gradient(260px 220px at 30% 30%, rgba(47,107,255,.22), transparent 62%),
+        radial-gradient(260px 220px at 76% 70%, rgba(74,163,255,.14), transparent 62%);
+      filter: blur(20px);
+      opacity: .9;
+      animation: buddyGlow 5.2s ease-in-out infinite;
+    }
+    @keyframes buddyGlow{
+      0%,100%{ transform: translateY(0px); opacity:.85; }
+      50%{ transform: translateY(-10px); opacity:1; }
+    }
+    .buddy .caption{ position:absolute; inset:auto 18px 18px 18px; }
+    .buddy h3{ margin:0; font-size: 1.05rem; letter-spacing:-.01em; }
+    .buddy p{ margin: 8px 0 0; color: var(--on-surface); line-height: 1.55; font-weight: 650; }
+
+    .mascot{
+      position:absolute;
+      left:50%;
+      top:46%;
+      transform: translate(-50%, -50%);
+      width: 260px;
+      max-width: 82%;
+      height: auto;
+      animation: floaty 4.2s ease-in-out infinite;
+      filter: drop-shadow(0 26px 65px rgba(0,0,0,.18));
+    }
+    @keyframes floaty{
+      0%,100%{ transform: translate(-50%, -50%) translateY(0px); }
+      50%{ transform: translate(-50%, -50%) translateY(-12px); }
+    }
+
+    /* SVG animation knobs */
+    .mascot .armL{ transform-origin: 152px 182px; animation: wave 2.8s ease-in-out infinite; }
+    @keyframes wave{ 0%,100%{ transform: rotate(12deg); } 50%{ transform: rotate(26deg); } }
+    .mascot .blink{ transform-origin: center; animation: blink 5.4s infinite; }
+    @keyframes blink{ 0%, 95%, 100%{ transform: scaleY(1); } 96%{ transform: scaleY(0.10); } 97%{ transform: scaleY(1); } }
+
+    /* Theme-aware fills (we can target by CSS vars instead of hard-coded colors) */
+    .mascot .shell{ fill: color-mix(in oklab, var(--surface) 88%, transparent); stroke: rgba(0,0,0,.10); }
+    .mascot .shell2{ fill: color-mix(in oklab, var(--surface) 78%, transparent); stroke: rgba(0,0,0,.08); }
+    .mascot .visor{ fill: rgba(47,107,255,.20); stroke: rgba(47,107,255,.32); }
+    .mascot .shine{ fill: rgba(255,255,255,.55); }
+    .mascot .glow{ fill: rgba(47,107,255,.16); }
+    .mascot .accent{ fill: rgba(74,163,255,.55); }
+    .mascot .eye{ fill: rgba(255,255,255,.92); }
+    html[data-theme="dark"] .mascot .shell{ stroke: rgba(255,255,255,.14); }
+    html[data-theme="dark"] .mascot .shell2{ stroke: rgba(255,255,255,.10); }
+
+  h1{margin:0;font-size:1.25rem;letter-spacing:-.01em;color: var(--on-bg)}
+  .lead{color:var(--on-surface);margin-top:4px;line-height:1.55}
+
+    .top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .slides{ position:relative; height: 220px; }
+    @media (max-width: 980px){
+      .slides{ height: 200px; }
+    }
+    .slide{
+      position:absolute;
+      inset: 0;
+      padding: 16px;
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap: 14px;
+      opacity: 0;
+      transform: translateY(6px);
+      animation: slideShow 16s infinite;
+    }
+    .slide:nth-child(1){
+      background:
+        radial-gradient(900px 260px at 12% 20%, rgba(47,107,255,0.26), transparent 60%),
+        radial-gradient(700px 240px at 86% 22%, rgba(77,224,255,0.18), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      animation-delay: 0s;
+    }
+    .slide:nth-child(2){
+      background:
+        radial-gradient(900px 260px at 12% 18%, rgba(124,58,237,0.22), transparent 60%),
+        radial-gradient(700px 240px at 82% 72%, rgba(255,122,89,0.16), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      animation-delay: 4s;
+    }
+    .slide:nth-child(3){
+      background:
+        radial-gradient(900px 260px at 18% 82%, rgba(77,224,255,0.18), transparent 60%),
+        radial-gradient(700px 240px at 86% 22%, rgba(47,107,255,0.22), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      animation-delay: 8s;
+    }
+    .slide:nth-child(4){
+      background:
+        radial-gradient(900px 260px at 14% 26%, rgba(255,105,180,0.14), transparent 60%),
+        radial-gradient(700px 240px at 86% 72%, rgba(124,58,237,0.18), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+      animation-delay: 12s;
+    }
+
+    @keyframes slideShow{
+      0%{ opacity: 0; transform: translateY(8px); }
+      6%{ opacity: 1; transform: translateY(0px); }
+      24%{ opacity: 1; transform: translateY(0px); }
+      30%{ opacity: 0; transform: translateY(-6px); }
+      100%{ opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce){
+      .slide{ animation: none; opacity: 1; position: relative; transform:none; }
+      .slides{ height: auto; }
+    }
+
+    .slide .cap{
+      max-width: 520px;
+    }
+    .slide .cap h4{
+      margin:0;
+      font-size: 1.05rem;
+      letter-spacing: -.01em;
+    }
+    .slide .cap p{
+      margin: 8px 0 0;
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: .94rem;
+    }
+
+    .slide .badge{
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 12px;
+      background: rgba(0,0,0,0.18);
+      border: 1px solid rgba(255,255,255,0.10);
+      color: var(--text);
+      font-weight: 700;
+      font-size: 12px;
+      white-space: nowrap;
+      backdrop-filter: blur(8px);
+    }
+    html[data-theme="light"] .slide .badge{
+      background: rgba(255,255,255,0.72);
+      border-color: rgba(9, 20, 46, 0.14);
+    }
+
+    .dots{
+      position:absolute;
+      left: 14px;
+      bottom: 12px;
+      display:flex;
+      gap: 8px;
+      align-items:center;
+      z-index: 3;
+      pointer-events:none;
+    }
+    .dot{
+      width: 7px; height: 7px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.22);
+      border: 1px solid rgba(255,255,255,0.10);
+    }
+    .dot:nth-child(1){ animation: dotPulse 16s infinite; animation-delay: 0s; }
+    .dot:nth-child(2){ animation: dotPulse 16s infinite; animation-delay: 4s; }
+    .dot:nth-child(3){ animation: dotPulse 16s infinite; animation-delay: 8s; }
+    .dot:nth-child(4){ animation: dotPulse 16s infinite; animation-delay: 12s; }
+    @keyframes dotPulse{
+      0%, 30%, 100%{ transform: scale(1); opacity: .55; }
+      6%, 24%{ transform: scale(1.65); opacity: .95; background: rgba(255,255,255,0.50); }
+    }
+
+    form{margin-top:4px}
+    label{display:block;margin:12px 0 6px;color:var(--muted);font-size:0.92rem}
+
+    .field{position:relative}
+    input[type="email"], textarea{
+      width:100%;
+      padding:12px 14px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.06);
+      background:rgba(0,0,0,0.14);
+      color:var(--text);
+      font-size:1rem;
+      transition:box-shadow .18s, border-color .18s, background .18s;
+    }
+    input[type="email"]::placeholder, textarea::placeholder{color:rgba(230,238,248,0.45)}
+    input[type="email"]:focus, textarea:focus{
+      outline:none;
+      border-color:rgba(77,224,255,0.25);
+      box-shadow:0 10px 30px rgba(77,224,255,0.07);
+      background:rgba(0,0,0,0.18);
+    }
+    textarea{min-height:140px;resize:vertical}
+
+    .form-actions{display:flex;gap:12px;align-items:center;margin-top:14px}
+    .btn{
+      padding:10px 14px;
+      border-radius:10px;
+      border:none;
+      cursor:pointer;
+      font-weight:700;
+      background:linear-gradient(90deg,var(--accent),var(--accent-2));
+      color:#001722;
+      box-shadow:0 12px 30px rgba(77,224,255,0.10);
+      transition:transform .12s, box-shadow .12s, filter .12s;
+    }
+    .btn:hover{transform:translateY(-2px);box-shadow:0 18px 45px rgba(77,224,255,0.14);filter:brightness(1.02)}
+    .btn:active{transform:translateY(0px)}
+
+    .btn.secondary{
+      background:transparent;
+      color:var(--accent);
+      border:1px solid rgba(77,224,255,0.12);
+      box-shadow:none;
+      font-weight:600
+    }
+
+  /* (removed) */
+
+    .hint{font-size:0.88rem;color:var(--muted);margin-top:12px;line-height:1.55}
+    .hint code{
+      color: var(--text);
+      background: rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+
+    .alert{
+      margin:12px 0;
+      padding:10px 12px;
+      border-radius:10px;
+      background:rgba(255,77,77,0.08);
+      color:#ffb4b4;
+      border:1px solid rgba(255,77,77,0.10)
+    }
+    .helper{ color: var(--on-surface); font-size: .9rem; line-height: 1.55; margin-top: 6px; }
+
+    label{ display:block; margin-top: 12px; font-size: .78rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--on-surface); }
+    .field{ margin-top: 8px; }
+    input, textarea{
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--outline-variant);
+      background: color-mix(in oklab, var(--surface) 92%, transparent);
+      color: var(--on-bg);
+      padding: 12px 12px;
+      font: inherit;
+      outline: none;
+    }
+    textarea{ min-height: 110px; resize: vertical; }
+  input:focus, textarea:focus{ border-color: rgba(47,107,255,.55); box-shadow: 0 0 0 4px rgba(47,107,255,.14); }
+
+    .btn{
+      margin-top: 14px;
+      width: 100%;
+      border: none;
+      padding: 12px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 800;
+      font-size: .92rem;
+      background: linear-gradient(135deg, var(--primary-container), var(--primary));
+      color: #fff;
+  box-shadow: 0 8px 26px rgba(47,107,255,.20);
+      transition: transform .14s ease, box-shadow .14s ease;
+    }
+  .btn:hover{ transform: translateY(-1px); box-shadow: 0 12px 34px rgba(47,107,255,.26); }
+
+    .alert{
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(245, 158, 11, .10);
+      border: 1px solid rgba(245, 158, 11, .22);
+      color: var(--on-bg);
+      font-weight: 650;
+    }
+    html[data-theme="dark"] .alert{ background: rgba(245, 158, 11, .12); }
+
+    @media(max-width:560px){
+      .container{margin:3vh 1rem}
+      .meta-row{gap:10px}
+      .logo-circle{width:48px;height:48px;font-size:18px}
+    }
+  </style>
+</head>
+<body>
+  {% include '_navbar.html' %}
+  <div class="container">
+    <div class="login-wrap">
+      <aside class="panel anim-fade-up anim-d1" aria-label="Sign in">
+        <div class="top">
+          <div class="meta-row" style="margin:0">
+            <div class="logo-circle" aria-hidden="true" title="Nexus">
+              <svg class="nexus-logo" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="5" r="2.5" fill="#ffffff" opacity="0.95" />
+                <circle cx="5" cy="19" r="2.5" fill="#ffffff" opacity="0.85" />
+                <circle cx="19" cy="19" r="2.5" fill="#ffffff" opacity="0.85" />
+                <line x1="12" y1="7.5" x2="5" y2="16.5" stroke="#ffffff" stroke-width="1.5" opacity="0.7"/>
+                <line x1="12" y1="7.5" x2="19" y2="16.5" stroke="#ffffff" stroke-width="1.5" opacity="0.7"/>
+              </svg>
+            </div>
+            <div>
+              <h1>Sign in</h1>
+              <div class="lead">Connect with Microsoft Graph access token.</div>
+            </div>
+          </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, msg in messages %}
+              <div class="alert" style="margin-top: 12px;">{{ msg }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form method="post" action="{{ url_for('login') }}" style="margin-top: 10px;">
+            <label for="email">Email</label>
+            <div class="field">
+              <input id="email" name="email" type="email" placeholder="you@company.com" value="{{ email or '' }}" required
+                     autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="email">
+            </div>
+
+            <label for="token">Access token</label>
+            <div class="field">
+              <textarea id="token" name="token" placeholder="Paste token" required></textarea>
+            </div>
+
+            <button type="submit" class="btn">Continue</button>
+          </form>
+
+          <a class="help-link" href="https://developer.microsoft.com/en-us/graph/graph-explorer" target="_blank" rel="noopener noreferrer">
+            Get a Graph access token (Graph Explorer)
+          </a>
+      </aside>
+
+  <aside class="buddy anim-slide-in anim-d2" aria-hidden="true">
+        <svg class="mascot" viewBox="0 0 320 320" role="img" aria-label="Login assistant">
+          <defs>
+            <radialGradient id="g1" cx="35%" cy="30%" r="70%">
+              <stop offset="0%" stop-color="rgba(47,107,255,.28)" />
+              <stop offset="65%" stop-color="rgba(47,107,255,.10)" />
+              <stop offset="100%" stop-color="rgba(47,107,255,0)" />
+            </radialGradient>
+            <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="rgba(255,255,255,.88)" />
+              <stop offset="100%" stop-color="rgba(255,255,255,.55)" />
+            </linearGradient>
+          </defs>
+
+          <!-- ambient glow -->
+          <circle class="glow" cx="160" cy="160" r="130" fill="url(#g1)" />
+
+          <!-- shadow -->
+          <ellipse cx="160" cy="262" rx="86" ry="18" fill="rgba(0,0,0,.14)" />
+
+          <!-- arms -->
+          <g class="armL" transform="translate(0,0)">
+            <path class="shell2" d="M86 184c-20 4-34 16-36 31-2 15 12 28 31 29 10 1 19-2 28-7" stroke-width="10" stroke-linecap="round" fill="none"/>
+          </g>
+          <path class="shell2" d="M234 186c20 4 34 16 36 31 2 15-12 28-31 29-10 1-19-2-28-7" stroke-width="10" stroke-linecap="round" fill="none"/>
+
+          <!-- body -->
+          <path class="shell" d="M104 168c6-36 32-62 56-62s50 26 56 62c4 22 3 56-8 76-10 18-27 28-48 28s-38-10-48-28c-11-20-12-54-8-76Z" stroke-width="2" />
+          <path class="accent" d="M124 200c10 22 22 34 36 34s26-12 36-34c-12 6-24 9-36 9s-24-3-36-9Z" opacity=".55" />
+
+          <!-- head -->
+          <path class="shell" d="M96 86c0-28 30-50 64-50s64 22 64 50c0 10-2 22-7 34-8 18-26 30-57 30s-49-12-57-30c-5-12-7-24-7-34Z" stroke-width="2" />
+
+          <!-- visor -->
+          <rect class="visor" x="110" y="88" width="100" height="44" rx="18" stroke-width="2" />
+          <path class="shine" d="M122 96c18-6 36-6 54 0" opacity=".35" />
+
+          <!-- eyes -->
+          <g class="blink">
+            <circle class="eye" cx="142" cy="110" r="6" />
+            <circle class="eye" cx="178" cy="110" r="6" />
+          </g>
+
+          <!-- small badge -->
+          <rect x="140" y="174" width="40" height="10" rx="999" fill="rgba(47,107,255,.55)" opacity=".85" />
+        </svg>
+        <div class="caption">
+          <h3>Ready when you are</h3>
+          <p>Paste your Graph token and we’ll fetch your org data in the background.</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+(function(){
+  const e = document.getElementById('email');
+  if (!e) return;
+  e.setAttribute('autocomplete','off');
+  e.setAttribute('autocapitalize','off');
+  e.setAttribute('autocorrect','off');
+  e.setAttribute('spellcheck','false');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Org Simulator</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <!-- Theme (dark/light) applied ASAP to avoid flash -->
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+  <style>
+    .page-title{ margin:0; font-size: clamp(26px, 3vw, 40px); letter-spacing:-.03em; font-weight: 950; }
+    .page-sub{ margin: 8px 0 0; color: var(--muted); line-height: 1.65; }
+
+    .searchWrap{ position:relative; }
+    .suggestions{
+      position:absolute;
+      left:0; right:0;
+      top: calc(100% + 6px);
+      z-index: 9999;
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+      overflow:hidden;
+      max-height: 320px;
+      overflow-y:auto;
+      backdrop-filter: blur(10px);
+    }
+    .suggestionItem{
+      padding: 10px 12px;
+      cursor:pointer;
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+    }
+  .suggestionItem:hover{ background: var(--glass); }
+    .suggestionName{ font-weight: 900; }
+    .suggestionMeta{ opacity:.8; font-size: 12px; }
+
+    .top-nav{ display:flex; align-items:center; justify-content:center; margin-top: 2px; }
+    .top-nav-inner{
+      display:flex; align-items:center; gap: 10px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      max-width: 100%;
+      overflow:auto;
+    }
+    .top-nav a{
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      padding: 10px 14px;
+      border-radius: 999px;
+  color: var(--text-soft);
+      font-weight: 700;
+      border: 1px solid transparent;
+      transition: background .12s ease, border-color .12s ease, transform .12s ease, color .12s ease;
+      white-space:nowrap;
+    }
+  .top-nav a:hover{ background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.10); transform: translateY(-1px); color: var(--text-strong); }
+    .top-nav a.active{
+  background: linear-gradient(135deg, rgba(16,185,129,.92), rgba(5,150,105,.92));
+      color: #071225;
+      border-color: rgba(255,255,255,.14);
+  box-shadow: 0 12px 26px rgba(16,185,129,.18);
+      font-weight: 800;
+    }
+    .top-nav .sep{ height: 22px; width: 1px; background: rgba(255,255,255,.12); margin: 0 2px; border:none; }
+
+    .grid{
+      margin-top: 14px;
+      display:grid;
+      grid-template-columns: 1.25fr .85fr;
+      gap: 14px;
+      align-items:start;
+    }
+    @media (max-width: 980px){ .grid{ grid-template-columns: 1fr; } }
+
+    .kpi{ display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    @media (max-width: 980px){ .kpi{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+  .kpi .box{ padding: 14px; border-radius: 16px; border: 1px solid var(--border); background: var(--card); }
+    .kpi .n{ font-weight: 950; font-size: 22px; letter-spacing:-.02em; }
+    .kpi .l{ color: var(--muted2); font-weight: 800; font-size: 12px; margin-top: 4px; text-transform: uppercase; letter-spacing:.08em; }
+
+    .list{ display:flex; flex-direction:column; gap: 8px; margin-top: 10px; }
+  .person{ display:flex; align-items:center; justify-content:space-between; gap: 12px; padding: 10px 12px; border-radius: 14px; border:1px solid var(--border); background: var(--card); }
+    .person .a{ display:flex; flex-direction:column; gap: 2px; }
+    .person .name{ font-weight: 900; }
+    .person .meta2{ color: var(--muted2); font-weight: 750; font-size: 12px; }
+
+    .tag{
+      display:inline-flex; align-items:center; gap: 8px;
+      padding: 6px 10px; border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.12);
+  color: var(--text-soft);
+      font-weight: 850;
+      font-size: 12px;
+    }
+
+    .small-note{ margin-top: 10px; color: var(--muted2); font-weight: 700; font-size: 12px; line-height: 1.6; }
+
+    select, input[type="text"], input[type="number"]{ width: 100%; }
+
+    .row{ display:flex; gap: 10px; flex-wrap:wrap; align-items:center; }
+    .row > *{ flex: 1; min-width: 220px; }
+
+    .danger-outline{
+      border: 1px solid rgba(255,77,109,.35) !important;
+      background: rgba(255,77,109,.10) !important;
+    }
+
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+
+  {% include '_navbar.html' %}
+
+  <div class="container" style="max-width: 1200px;">
+    <div class="card pad" style="margin-top: 14px;">
+      <div style="display:flex; gap: 14px; align-items:end; justify-content:space-between; flex-wrap:wrap;">
+        <div>
+          <h1 class="page-title">Organization Simulator</h1>
+          <p class="page-sub">This page <strong>does not delete anyone</strong>. It pulls live data from Microsoft Graph (like Graph Explorer) and simulates removals to show impact.</p>
+        </div>
+        <div class="tag"><span class="dot" style="width:10px;height:10px;border-radius:999px;background:linear-gradient(135deg,var(--accent),var(--accent2));"></span> Live Graph</div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="row">
+        <div class="field">
+          <label>Search employee</label>
+          <div class="searchWrap">
+            <input id="searchBox" type="text" placeholder="Type name or email/UPN..." autocomplete="off" />
+            <div id="suggestions" class="suggestions" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap: 10px; flex-wrap:wrap; margin-top: 12px;">
+        <button class="btn" id="loadBtn" type="button">Refresh (Graph)</button>
+        <button class="btn danger" id="removeBtn" type="button">Remove (simulate)</button>
+        <button class="btn ghost" id="resetBtn" type="button">Reset simulation</button>
+        <button class="btn ghost" id="analyzeBtn" type="button">Analyze impact</button>
+      </div>
+
+      <div id="status" class="toast" style="margin-top: 12px; display:none;"></div>
+
+      <div class="grid">
+        <div class="card pad" style="margin:0;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap: 12px; flex-wrap:wrap;">
+            <div style="font-weight:950; font-size: 16px;">Impact summary</div>
+            <div class="tag"><span class="mono" id="removedCount">0</span> removed</div>
+          </div>
+
+          <div class="kpi" style="margin-top: 12px;">
+            <div class="box">
+              <div class="n" id="kTotal">–</div>
+              <div class="l">Total nodes</div>
+            </div>
+            <div class="box">
+              <div class="n" id="kRemaining">–</div>
+              <div class="l">Remaining</div>
+            </div>
+            <div class="box danger-outline">
+              <div class="n" id="kOrphans">–</div>
+              <div class="l">Disconnected (Orphans)</div>
+            </div>
+            <div class="box danger-outline">
+              <div class="n" id="kIsolated">–</div>
+              <div class="l">Isolated</div>
+            </div>
+          </div>
+
+          <div class="kpi" style="margin-top: 10px;">
+            <div class="box">
+              <div class="n" id="kComponents">–</div>
+              <div class="l">Components</div>
+            </div>
+            <div class="box">
+              <div class="n" id="kLargest">–</div>
+              <div class="l">Largest component</div>
+            </div>
+            <div class="box">
+              <div class="n" id="kMulti">–</div>
+              <div class="l">Multi-team membership</div>
+            </div>
+            <div class="box">
+              <div class="n" id="kRemoved">–</div>
+              <div class="l">Removed</div>
+            </div>
+          </div>
+
+          <div class="small-note">
+            <div><strong>Definitions</strong> (approx):</div>
+            <ul style="margin: 6px 0 0 18px; padding:0;">
+              <li><strong>Orphans</strong>: users whose manager is removed/missing after simulation.</li>
+              <li><strong>Isolated</strong>: users with no manager and no direct reports (in remaining graph).</li>
+              <li><strong>Multi-team membership</strong>: user has both a manager and at least one direct report.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card pad" style="margin:0;">
+          <div style="font-weight:950; font-size: 16px;">Highlights</div>
+
+          <div style="margin-top: 10px;">
+            <div class="tag">Disconnected employees</div>
+            <div class="list" id="orphansList"></div>
+          </div>
+
+          <div style="margin-top: 12px;">
+            <div class="tag">Isolated</div>
+            <div class="list" id="isolatedList"></div>
+          </div>
+
+          <div style="margin-top: 12px;">
+            <div class="tag">Multi-team membership</div>
+            <div class="list" id="multiList"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card pad" style="margin-top: 14px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap: 12px; flex-wrap:wrap;">
+          <div style="font-weight:950; font-size: 16px;">Disconnected components (top 10)</div>
+          <div class="muted mono" id="componentsNote">–</div>
+        </div>
+        <div id="components" style="margin-top: 12px; display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      // Nav active state
+      (function syncNavActive(){
+        const links = Array.from(document.querySelectorAll('a[data-nav]'));
+        if (!links.length) return;
+        const path = (window.location.pathname || '/').replace(/\/+$/, '') || '/';
+        const isSamePath = (href) => {
+          try {
+            const u = new URL(href, window.location.origin);
+            const p = (u.pathname || '/').replace(/\/+$/, '') || '/';
+            return p === path;
+          } catch { return false; }
+        };
+        for (const a of links) { a.classList.remove('active'); a.removeAttribute('aria-current'); }
+        const active = links.find(a => isSamePath(a.getAttribute('href')));
+        if (active) { active.classList.add('active'); active.setAttribute('aria-current','page'); }
+      })();
+
+      const els = {
+        loadBtn: document.getElementById('loadBtn'),
+        removeBtn: document.getElementById('removeBtn'),
+        resetBtn: document.getElementById('resetBtn'),
+        analyzeBtn: document.getElementById('analyzeBtn'),
+        searchBox: document.getElementById('searchBox'),
+        suggestions: document.getElementById('suggestions'),
+        status: document.getElementById('status'),
+        removedCount: document.getElementById('removedCount'),
+
+        kTotal: document.getElementById('kTotal'),
+        kRemaining: document.getElementById('kRemaining'),
+        kOrphans: document.getElementById('kOrphans'),
+        kIsolated: document.getElementById('kIsolated'),
+        kComponents: document.getElementById('kComponents'),
+        kLargest: document.getElementById('kLargest'),
+        kMulti: document.getElementById('kMulti'),
+        kRemoved: document.getElementById('kRemoved'),
+
+        orphansList: document.getElementById('orphansList'),
+        isolatedList: document.getElementById('isolatedList'),
+        multiList: document.getElementById('multiList'),
+        components: document.getElementById('components'),
+        componentsNote: document.getElementById('componentsNote'),
+      };
+
+    let nodes = []; // org snapshot used for analysis only
+      let removed = new Set();
+  let selectedId = null;
+    let byMail = new Map(); // normalized mail -> id (from org snapshot)
+    let byUpn = new Map();  // normalized upn  -> id (from org snapshot)
+      let lastSuggestions = []; // last fetched list from Graph
+
+      function showStatus(msg, kind){
+        els.status.style.display = 'block';
+        els.status.className = 'toast ' + (kind || '');
+        els.status.textContent = msg;
+      }
+
+      function clearStatus(){
+        els.status.style.display = 'none';
+        els.status.textContent = '';
+        els.status.className = 'toast';
+      }
+
+      function optionKey(u){
+        const name = u.displayName || '(no name)';
+        const mail = u.mail || u.userPrincipalName || '';
+        const dept = u.department ? ` • ${u.department}` : '';
+        return `${name}  —  ${mail}${dept}`;
+      }
+
+      function hideSuggestions(){
+        els.suggestions.style.display = 'none';
+        els.suggestions.innerHTML = '';
+      }
+
+      function renderSuggestions(list){
+        els.suggestions.innerHTML = '';
+        lastSuggestions = (list || []).slice(0, 25);
+        if (!lastSuggestions.length) {
+          hideSuggestions();
+          return;
+        }
+
+        for (const u of lastSuggestions) {
+          const item = document.createElement('div');
+          item.className = 'suggestionItem';
+          item.setAttribute('role', 'button');
+          item.tabIndex = 0;
+
+          const name = document.createElement('div');
+          name.className = 'suggestionName';
+          name.textContent = u.displayName || u.mail || u.userPrincipalName || '(no name)';
+
+          const meta = document.createElement('div');
+          meta.className = 'suggestionMeta';
+          meta.textContent = [u.mail || u.userPrincipalName, u.department, u.jobTitle].filter(Boolean).join(' • ');
+
+          item.appendChild(name);
+          item.appendChild(meta);
+
+          const selectThis = () => {
+            selectedId = u.id;
+            els.searchBox.value = optionKey(u);
+            hideSuggestions();
+            showStatus(`Selected: ${optionKey(u)}. Click Remove (simulate).`, 'ok');
+          };
+
+          item.addEventListener('mousedown', (e) => {
+            // mousedown fires before blur; prevents losing click due to blur handlers
+            e.preventDefault();
+            selectThis();
+          });
+          item.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); selectThis(); }
+          });
+
+          els.suggestions.appendChild(item);
+        }
+
+        els.suggestions.style.display = 'block';
+      }
+
+      function norm(s){
+        return String(s || '').trim().toLowerCase();
+      }
+
+      function idFromQuery(q){
+        const t = norm(q);
+        if (!t) return null;
+        // If a user pastes an object id, support it.
+        const direct = nodes.find(u => u && u.id && norm(u.id) === t);
+        if (direct) return direct.id;
+        return byMail.get(t) || byUpn.get(t) || null;
+      }
+
+      async function fetchSuggestions(q){
+        const t = (q || '').trim();
+        if (!t) return [];
+        const res = await fetch(`{{ url_for('org_simulator_search') }}?q=${encodeURIComponent(t)}&limit=25`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Search failed');
+        return data.items || [];
+      }
+
+      function resolveSelectedFromSearch(){
+        const q = els.searchBox.value || '';
+        const exact = idFromQuery(q);
+        if (exact && !removed.has(exact)) return exact;
+        return null;
+      }
+
+      function debounce(fn, wait){
+        let t;
+        return (...args) => {
+          clearTimeout(t);
+          t = setTimeout(() => fn(...args), wait);
+        };
+      }
+
+      function renderPersonList(container, arr){
+        container.innerHTML = '';
+        if (!arr || !arr.length) {
+          const div = document.createElement('div');
+          div.className = 'muted';
+          div.textContent = '—';
+          container.appendChild(div);
+          return;
+        }
+        for (const p of arr.slice(0, 8)) {
+          const row = document.createElement('div');
+          row.className = 'person';
+          const left = document.createElement('div');
+          left.className = 'a';
+          const name = document.createElement('div');
+          name.className = 'name';
+          name.textContent = p.displayName || p.mail || p.id;
+          const meta = document.createElement('div');
+          meta.className = 'meta2';
+          meta.textContent = [p.mail, p.department, p.jobTitle].filter(Boolean).join(' • ');
+          left.appendChild(name);
+          left.appendChild(meta);
+          const badge = document.createElement('span');
+          badge.className = 'tag';
+          badge.textContent = 'View';
+          row.appendChild(left);
+          row.appendChild(badge);
+          container.appendChild(row);
+        }
+      }
+
+      function setKpi(id, v){
+        id.textContent = (v === null || v === undefined) ? '–' : String(v);
+      }
+
+      function renderComponents(comps){
+        els.components.innerHTML = '';
+        if (!comps || !comps.length) {
+          els.componentsNote.textContent = '–';
+          return;
+        }
+        els.componentsNote.textContent = `${comps.length} component(s) returned`;
+        for (const c of comps) {
+          const card = document.createElement('div');
+          card.className = 'card pad';
+          card.style.margin = '0';
+          const title = document.createElement('div');
+          title.style.fontWeight = '950';
+          title.textContent = `Component size: ${c.size}`;
+          card.appendChild(title);
+
+          const list = document.createElement('div');
+          list.className = 'list';
+          for (const p of (c.sample || [])) {
+            const item = document.createElement('div');
+            item.className = 'muted';
+            item.textContent = (p.displayName || p.mail || p.id);
+            list.appendChild(item);
+          }
+          card.appendChild(list);
+          els.components.appendChild(card);
+        }
+      }
+
+      async function loadFromGraph(){
+        clearStatus();
+        showStatus('Refreshing org snapshot from Microsoft Graph (used for analysis)...', '');
+        const res = await fetch(`{{ url_for('org_simulator_data') }}`);
+        const data = await res.json();
+        if (!data.ok) {
+          showStatus(data.error || 'Failed to load data', 'error');
+          return;
+        }
+        nodes = data.nodes || [];
+        byMail = new Map();
+        byUpn = new Map();
+        for (const u of nodes) {
+          if (!u || !u.id) continue;
+          const m = norm(u.mail);
+          const upn = norm(u.userPrincipalName);
+          if (m) byMail.set(m, u.id);
+          if (upn) byUpn.set(upn, u.id);
+        }
+        removed = new Set();
+        selectedId = null;
+        hideSuggestions();
+        els.removedCount.textContent = '0';
+        showStatus(`Org snapshot ready (${nodes.length} user(s)). Start typing to search live from Graph.`, 'ok');
+      }
+
+      function ensureSelectedFromSearch(){
+        if (selectedId && !removed.has(selectedId)) return true;
+        const id = resolveSelectedFromSearch();
+        if (id) {
+          selectedId = id;
+          return true;
+        }
+        return false;
+      }
+
+      async function ensureSelectedFromSearchAsync(){
+        if (ensureSelectedFromSearch()) return true;
+        // Last resort: if user typed an exact mail/UPN, ask Graph for it.
+        const q = (els.searchBox.value || '').trim();
+        if (!q) return false;
+        // Only do this for email-like strings to avoid unwanted removals.
+        const looksLikeMail = q.includes('@');
+        if (!looksLikeMail) return false;
+        try {
+          const res = await fetch(`{{ url_for('org_simulator_search') }}?q=${encodeURIComponent(q)}&limit=5`);
+          const data = await res.json();
+          const items = (data && data.ok && data.items) ? data.items : [];
+          if (items.length === 1 && items[0] && items[0].id) {
+            selectedId = items[0].id;
+            // Make the input value consistent with our mapping for subsequent clicks
+            els.searchBox.value = optionKey(items[0]);
+            renderSuggestions(items);
+            return true;
+          }
+        } catch {
+          // ignore
+        }
+        return false;
+      }
+
+      async function analyze(){
+        clearStatus();
+        showStatus('Analyzing impact...', '');
+        const res = await fetch(`{{ url_for('org_simulator_analyze') }}` , {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ removed: Array.from(removed) })
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          showStatus(data.error || 'Analyze failed', 'error');
+          return;
+        }
+
+        const ins = data.insights || {};
+        setKpi(els.kTotal, ins.total_nodes);
+        setKpi(els.kRemaining, ins.remaining_nodes);
+        setKpi(els.kRemoved, ins.removed);
+        setKpi(els.kOrphans, ins.orphans);
+        setKpi(els.kIsolated, ins.isolated);
+        setKpi(els.kComponents, ins.components);
+        setKpi(els.kLargest, ins.largest_component);
+        setKpi(els.kMulti, ins.multi_team_membership);
+
+        renderPersonList(els.orphansList, data.orphans);
+        renderPersonList(els.isolatedList, data.isolated);
+        renderPersonList(els.multiList, data.multi_team);
+        renderComponents(data.components);
+
+        showStatus('Analysis complete.', 'ok');
+      }
+
+      els.loadBtn.addEventListener('click', loadFromGraph);
+      els.analyzeBtn.addEventListener('click', analyze);
+
+      els.resetBtn.addEventListener('click', () => {
+        removed = new Set();
+        els.removedCount.textContent = '0';
+        selectedId = null;
+        showStatus('Simulation reset. Click Analyze impact to refresh KPIs.', '');
+      });
+
+      els.removeBtn.addEventListener('click', async () => {
+        if (!(await ensureSelectedFromSearchAsync())) {
+          const q = els.searchBox.value || '';
+          if (!q.trim()) {
+            showStatus('Type an employee name/email/UPN first.', 'error');
+            return;
+          }
+          showStatus('Pick the correct person from the dropdown suggestions before removing.', 'error');
+          return;
+        }
+        removed.add(selectedId);
+        els.removedCount.textContent = String(removed.size);
+        const removedPerson = nodes.find(u => u && u.id === selectedId);
+        const label = removedPerson ? optionKey(removedPerson) : selectedId;
+        showStatus(`Removed (simulated): ${label}. Click Analyze impact to see insights.`, '');
+        // Clear so the next removal doesn't accidentally reuse the old ID.
+        selectedId = null;
+      });
+
+      const onSearch = debounce(async () => {
+        const q = (els.searchBox.value || '').trim();
+        if (!q) {
+          clearStatus();
+          hideSuggestions();
+          selectedId = null;
+          return;
+        }
+        try {
+          const list = await fetchSuggestions(q);
+          renderSuggestions(list);
+          if (!list.length) {
+            showStatus('No match from Graph. Keep typing or use exact email/UPN.', 'error');
+            selectedId = null;
+            return;
+          }
+          if (list.length === 1) {
+            showStatus(`Matched: ${optionKey(list[0])}. Click Remove (simulate).`, 'ok');
+            // Don't auto-select: require explicit click to avoid wrong removals.
+            selectedId = null;
+            return;
+          }
+          showStatus(`Found ${list.length} matches. Pick the correct person from the dropdown.`, '');
+          selectedId = null;
+        } catch (e) {
+          showStatus(String(e && e.message ? e.message : e), 'error');
+          hideSuggestions();
+          selectedId = null;
+        }
+      }, 220);
+      els.searchBox.addEventListener('input', () => { onSearch(); });
+
+      // Hide suggestions when clicking elsewhere
+      document.addEventListener('click', (e) => {
+        if (!els.suggestions.contains(e.target) && e.target !== els.searchBox) {
+          hideSuggestions();
+        }
+      });
+
+      // Enter key: if search matches an exact mail/UPN, remove immediately.
+      els.searchBox.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          els.removeBtn.click();
+        }
+      });
+
+      // Auto-load user list once
+      loadFromGraph().catch(e => showStatus(String(e), 'error'));
+
+    })();
+  </script>
+</body>
+</html>

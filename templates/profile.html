@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>{{ profile.displayName or profile.mail }} — Profile</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Theme (dark/light) applied ASAP to avoid flash -->
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* Navbar (same as hierarchy) */
+    .top-nav{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      margin-top: 2px;
+    }
+    .top-nav-inner{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      max-width: 100%;
+      overflow:auto;
+    }
+    .top-nav a{
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      padding: 10px 14px;
+      border-radius: 999px;
+  color: var(--text-soft);
+      font-weight: 700;
+      letter-spacing: .01em;
+      white-space: nowrap;
+      border: 1px solid transparent;
+      transition: background .12s ease, border-color .12s ease, transform .12s ease, color .12s ease;
+    }
+    .top-nav a:hover{
+      background: rgba(255,255,255,.07);
+      border-color: rgba(255,255,255,.10);
+      transform: translateY(-1px);
+      color: var(--text-strong);
+    }
+    .top-nav a.active{
+      background: linear-gradient(135deg, rgba(47,107,255,.92), rgba(74,163,255,.92));
+      color: #071225;
+      border-color: rgba(255,255,255,.14);
+      box-shadow: 0 12px 26px rgba(47,107,255,.22);
+      font-weight: 800;
+    }
+    .top-nav .sep{
+      height: 22px;
+      width: 1px;
+      background: rgba(255,255,255,.12);
+      margin: 0 2px;
+      border: none;
+    }
+
+    /* Reduce bold feel (target only what is too heavy) */
+    .h-title{ font-weight: 800; }
+    .meta{ font-weight: 600; }
+    .chip{ font-weight: 500; }
+    .badge{ font-weight: 650; }
+    .kv .k{ font-weight: 650; }
+    .kv .v{ font-weight: 500; }
+
+    /* Lighter typography */
+    .section-title{ font-weight: 600; }
+
+    /* People list w/ photo */
+    .people-grid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .person{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      padding: 10px 10px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.10);
+      text-decoration:none;
+  color: var(--text);
+      transition: transform .12s ease, border-color .12s ease, background .12s ease;
+    }
+    .person:hover{
+      transform: translateY(-1px);
+      background: rgba(255,255,255,.05);
+      border-color: rgba(74,163,255,.22);
+    }
+    .person .pimg{
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      object-fit: cover;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.18);
+      flex: 0 0 auto;
+    }
+    .person .pname{ font-weight: 650; line-height: 1.2; }
+  .person .psub{ margin-top: 2px; font-size: 12px; color: var(--text-muted); font-weight: 550; }
+
+    .reports-cards{
+      display:grid;
+      grid-template-columns: 1fr; /* was 1fr 1fr */
+      gap: 14px;
+      margin-top: 14px;
+    }
+    @media (max-width: 980px){
+      .reports-cards{ grid-template-columns: 1fr; }
+    }
+
+    /* Avoid overly-bold numbers in header */
+    .stat-number{ font-weight: 800; font-size: 20px; }
+
+    /* Make the new reports card layout tidy */
+    .reports-grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      align-items:start;
+      margin-top: 10px;
+    }
+    @media (max-width: 980px){
+      .reports-grid{ grid-template-columns: 1fr; }
+    }
+
+    /* People inside a card side-by-side (wraps nicely) */
+    .people-grid{
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    @media (max-width: 520px){
+      .people-grid{ grid-template-columns: 1fr; }
+    }
+
+    /* Reports-to is just one person: keep it full width */
+    .people-grid.one{
+      grid-template-columns: 1fr;
+    }
+  </style>
+</head>
+<body>
+  {% include '_navbar.html' %}
+  <div class="container">
+    <div class="card pad" style="margin-top:22px">
+      <div class="row" style="align-items:center;justify-content:space-between">
+        <div class="row" style="align-items:center;gap:14px;min-width:0;flex:1">
+          <div class="avatar">
+            <img src="{{ url_for('profile_photo_user', user=(profile.id or profile.mail)) }}" alt="Avatar">
+          </div>
+          <div style="min-width:0">
+            <h1 class="h-title">{{ profile.displayName or profile.mail }}</h1>
+            <div class="h-sub">
+              {{ profile.jobTitle or '' }}{{ " • " if profile.jobTitle and profile.companyName else "" }}{{ profile.companyName or '' }}
+            </div>
+          </div>
+        </div>
+
+        <div class="row end" style="align-items:center">
+          <div class="row" style="align-items:center;gap:10px;margin-right:14px;flex-wrap:wrap;justify-content:flex-end">
+          </div>
+          <div style="text-align:right">
+            <div class="meta">Status</div>
+            <div class="stat-number">{{ profile.status|capitalize }}</div>
+            <div class="meta" style="margin-top:8px">Active days</div>
+            <div class="stat-number">{{ profile.active_days if profile.active_days is not none else '—' }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-top:16px">
+      <!-- LEFT: main content -->
+      <div>
+        <div class="card pad">
+          <div style="display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap">
+            <div style="flex:1;min-width:260px">
+              <div class="meta">Pinned people</div>
+              <div class="chips" aria-live="polite" style="margin-top:10px">
+                {% if profile.pinned %}
+                  {% for p in profile.pinned %}
+                    <div class="chip">{{ p.displayName or p.mail or p.id }}</div>
+                  {% endfor %}
+                {% else %}
+                  <div class="meta">No pinned people</div>
+                {% endif %}
+              </div>
+
+              <div style="margin-top:18px">
+                <div class="meta">Skills</div>
+                <div class="chips" style="margin-top:10px">
+                  {% for s in profile.skills %}
+                    <div class="chip">{{ s }}</div>
+                  {% else %}
+                    <div class="meta">No skills detected</div>
+                  {% endfor %}
+                </div>
+
+                <div class="meta" style="margin-top:14px">Summary</div>
+                <div style="margin-top:8px;font-weight:600;color:var(--text);line-height:1.6">
+                  {{ profile.skills_summary }}
+                </div>
+              </div>
+            </div>
+
+            <div style="width:320px;min-width:260px">
+              <canvas id="skillsPie" height="220"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- REPLACE the single "Organization" card with TWO separate cards -->
+        <div class="reports-cards">
+          <!-- Reports to card -->
+          <div class="card pad">
+            <div class="meta">Reports to</div>
+
+            <div class="people-grid one" aria-live="polite">
+              {% if profile.reports_to %}
+                {% set rt = profile.reports_to %}
+                <a class="person"
+                   href="{{ url_for('profile') }}?email={{ rt.mail or rt.userPrincipalName or rt.id }}">
+                  <img class="pimg"
+                       src="{{ url_for('profile_photo_user', user=(rt.id or rt.mail or rt.userPrincipalName)) }}"
+                       alt="Photo">
+                  <div style="min-width:0">
+                    <div class="pname">{{ rt.displayName or rt.mail or rt.userPrincipalName }}</div>
+                    <div class="psub">
+                      {{ rt.jobTitle or '' }}{{ " • " if rt.jobTitle and rt.department else "" }}{{ rt.department or '' }}
+                    </div>
+                  </div>
+                </a>
+              {% else %}
+                <div class="meta" style="margin-top:8px">—</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Direct reportees card -->
+          <div class="card pad">
+            <div class="meta">Direct reportees</div>
+
+            <div class="people-grid" aria-live="polite">
+              {% if profile.direct_reports %}
+                {% for r in profile.direct_reports %}
+                  <a class="person"
+                     href="{{ url_for('profile') }}?email={{ r.mail or r.userPrincipalName or r.id }}">
+                    <img class="pimg"
+                         src="{{ url_for('profile_photo_user', user=(r.id or r.mail or r.userPrincipalName)) }}"
+                         alt="Photo">
+                    <div style="min-width:0">
+                      <div class="pname">{{ r.displayName or r.mail or r.userPrincipalName or r.id }}</div>
+                      <div class="psub">
+                        {{ r.jobTitle or '' }}{{ " • " if r.jobTitle and r.department else "" }}{{ r.department or '' }}
+                      </div>
+                    </div>
+                  </a>
+                {% endfor %}
+              {% else %}
+                <div class="meta" style="margin-top:8px">—</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: personal card stays + timeline -->
+      <aside class="card pad">
+        <div class="row" style="justify-content:space-between;align-items:flex-start">
+          <div>
+            <h3 style="margin:0;font-size:16px;font-weight:800;color:var(--text-strong)">{{ profile.displayName }}</h3>
+            <div class="small" style="margin-top:6px;font-weight:600">{{ profile.department or '' }}</div>
+          </div>
+          <span class="badge">Profile</span>
+        </div>
+
+        <hr class="sep">
+
+        <div class="kv">
+          <div class="k">Email</div>
+          <div class="v">{{ profile.mail }}</div>
+
+          <div class="k">Office</div>
+          <div class="v">{{ profile.officeLocation or '—' }}</div>
+
+          <div class="k">Phone</div>
+          <div class="v">{{ profile.mobilePhone or (profile.businessPhones|join(', ') if profile.businessPhones else '—') }}</div>
+
+          <div class="k">City</div>
+          <div class="v">{{ profile.city or '—' }}</div>
+
+          <div class="k">Joined</div>
+          <div class="v">{{ profile.createdDateTime or '—' }}</div>
+        </div>
+
+        <!-- Activity timeline moved here (right column, below personal data) -->
+        <hr class="sep">
+
+        <div class="meta">Activity timeline</div>
+        <div style="margin-top:12px">
+          <canvas id="activityLine" height="140"></canvas>
+        </div>
+
+        <hr class="sep">
+
+        <form method="get" action="{{ url_for('profile') }}" autocomplete="off" id="profile-search-form">
+          <div class="meta">Search Teams profile</div>
+          <input class="field" name="email" type="search" placeholder="user@contoso.com"
+                 required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="email"
+                 style="margin-top:10px">
+          <button type="submit" class="btn" style="margin-top:12px;width:100%">Search</button>
+        </form>
+      </aside>
+    </div>
+  </div>
+
+  <div id="profile-data"
+       data-skills='{{ profile.skills_weights | tojson }}'
+       data-activity='{{ profile.activity_timeline | tojson }}'></div>
+
+  <script>
+    const profileDataEl = document.getElementById('profile-data');
+    const skills = JSON.parse(profileDataEl.dataset.skills || '[]');
+    const labels = skills.map(s => s.name);
+    const values = skills.map(s => s.weight);
+    const colors = ['#2f6bff','#4aa3ff','#7ab1ff','#9f7bff','#d07bff','#ff7bda','#ff9f7b','#ffd77b'];
+
+    const pieCtx = document.getElementById('skillsPie').getContext('2d');
+    function getThemeMode(){
+      try { return document.documentElement.getAttribute('data-theme') || 'dark'; } catch { return 'dark'; }
+    }
+    function chartThemeColors(){
+      const mode = getThemeMode();
+      const isLight = mode === 'light';
+      return {
+        tick: isLight ? 'rgba(8,18,38,.72)' : 'rgba(234,240,255,.7)',
+        grid: isLight ? 'rgba(8,18,38,.12)' : 'rgba(255,255,255,.06)',
+        legend: isLight ? 'rgba(8,18,38,.72)' : 'rgba(234,240,255,.8)'
+      };
+    }
+
+    const tcol = chartThemeColors();
+
+    new Chart(pieCtx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_,i)=>colors[i%colors.length]) }]},
+      options: { plugins:{legend:{position:'right', labels:{color: tcol.legend}}}, maintainAspectRatio:false }
+    });
+
+    const activity = JSON.parse(profileDataEl.dataset.activity || '[]');
+    const years = activity.map((_,i) => 'Y' + (i+1));
+    const lineCtx = document.getElementById('activityLine').getContext('2d');
+    new Chart(lineCtx, {
+      type: 'line',
+      data: { labels: years, datasets: [{ label:'Activity', data: activity, borderColor:'#4aa3ff', backgroundColor:'rgba(74,163,255,0.14)', fill:true, tension:0.3 }]},
+      options: {
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{ticks:{color: tcol.tick}, grid:{color: tcol.grid}},
+          y:{beginAtZero:true, ticks:{color: tcol.tick}, grid:{color: tcol.grid}}
+        },
+        maintainAspectRatio:false
+      }
+    });
+  </script>
+
+  <script>
+  </script>
+
+  <script>
+  (function(){
+    const sf = document.getElementById('profile-search-form');
+    if (!sf) return;
+    const inp = sf.querySelector('input[name="email"]');
+    if (!inp) return;
+
+    inp.setAttribute('autocomplete','off');
+    inp.setAttribute('autocapitalize','off');
+    inp.setAttribute('autocorrect','off');
+    inp.setAttribute('spellcheck','false');
+    inp.setAttribute('inputmode','email');
+
+    const origName = inp.name || 'email';
+    inp.addEventListener('focus', ()=> inp.name = 'email_tmp_' + Date.now());
+    inp.addEventListener('blur', ()=> inp.name = origName);
+  })();
+  </script>
+</body>
+</html>

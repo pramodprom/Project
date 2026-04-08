@@ -1,0 +1,832 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Employees</title>
+  <!-- Theme (dark/light) applied ASAP to avoid flash -->
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}" />
+  <style>
+    /* Employees page can benefit from a wider container because of the data table. */
+    .container{ max-width: 1440px; }
+
+    /* Increase card padding on this page (requested). */
+    .card.pad{ padding: 22px; }
+
+    /* Layout helpers */
+    .section-title{ font-weight: 900; letter-spacing: .01em; }
+    .section-sub{ margin-top:6px; color: var(--text-muted); font-size: 13px; }
+    .top-grid{ display:grid; grid-template-columns: 1.4fr .9fr; gap: 12px; align-items: start; position: relative; z-index: 40; }
+    .btn.wide{ width:100%; justify-content: space-between; }
+    .actions-card{ margin:0; }
+    .actions-row{ display:flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+    @media (max-width: 980px){
+      .top-grid{ grid-template-columns: 1fr; }
+    }
+
+    .page-title { font-size: 28px; margin: 0; letter-spacing: -.02em; font-weight: 950; }
+    .page-sub { margin: 8px 0 0; color: var(--muted); line-height: 1.6; }
+
+    /* Subtle entrance animations */
+    @keyframes fadeUp{ from{ opacity:0; transform: translateY(14px);} to{ opacity:1; transform: translateY(0);} }
+    .anim-fade-up{ opacity:0; animation: fadeUp .7s ease-out forwards; }
+    .anim-d1{ animation-delay: .06s; }
+    .anim-d2{ animation-delay: .14s; }
+    .anim-d3{ animation-delay: .22s; }
+
+    /* Filters card */
+    .filters-card{
+      margin-top: 12px;
+      padding: 16px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: color-mix(in oklab, var(--card) 86%, transparent);
+      box-shadow: 0 18px 50px rgba(0,0,0,.18);
+    }
+    html[data-theme="light"] .filters-card{ box-shadow: 0 14px 40px rgba(8,18,38,.08); }
+    .filters-head{ display:flex; align-items:center; justify-content:space-between; gap: 12px; }
+    .filters-title{ font-weight: 900; font-size: 15px; letter-spacing: .01em; }
+    .filters-sub{ color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+    .field-hint{ color: var(--text-muted); font-size: 12px; margin: -2px 0 8px; }
+
+    /* Live search suggestions (same UX as Org Simulator) */
+    .searchWrap{ position:relative; }
+    .suggestions{
+      position:absolute;
+      left:0; right:0;
+      top: calc(100% + 6px);
+      z-index: 99999;
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+      overflow:hidden;
+      max-height: 320px;
+      overflow-y:auto;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .suggestionItem{
+      padding: 10px 12px;
+      cursor:pointer;
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+    }
+  .suggestionItem:hover{ background: var(--glass); }
+    .suggestionName{ font-weight: 900; }
+    .suggestionMeta{ opacity:.82; font-size: 12px; }
+
+    /* table */
+    .table-wrap {
+      overflow: auto;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--card);
+    }
+    table { width: 100%; border-collapse: collapse; min-width: 860px; }
+    thead th {
+      position: sticky; top: 0;
+  background: color-mix(in oklab, var(--glass) 75%, transparent);
+      text-align: left;
+      font-weight: 900;
+      padding: 12px 12px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+      color: var(--text-strong);
+    }
+    tbody td {
+      padding: 12px 12px;
+      border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+      color: var(--text);
+      vertical-align: top;
+    }
+    tbody tr:hover td { background: color-mix(in oklab, var(--glass) 70%, transparent); }
+    .muted { color: var(--muted2); }
+
+    .sub-actions { display:flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+    .toolbar { display:flex; gap: 14px; align-items: end; justify-content: space-between; flex-wrap: wrap; }
+
+    /* Field picker */
+    .picker { position: relative; z-index: 30; }
+    .picker-menu {
+      /* becomes a fixed-position "portal" via JS so it can't be overlapped/clipped */
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 520px;
+      max-width: calc(100vw - 32px);
+  background: color-mix(in oklab, var(--card) 88%, transparent);
+  border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+      padding: 10px;
+      z-index: 9999;
+      display: none;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .picker.open .picker-menu { display: block; }
+    .picker-actions { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin: 6px 0 8px; }
+  .picker-list { max-height: 280px; overflow: auto; padding: 6px; border-radius: 12px; border: 1px solid var(--border); background: var(--card); }
+    .picker-item { display: flex; gap: 10px; align-items: center; padding: 10px; border-radius: 12px; }
+  .picker-item:hover { background: var(--glass); }
+    .picker-item label { cursor: pointer; flex: 1; }
+    .picker-item strong { font-weight: 900; }
+
+    /* match app.css inputs */
+    .field label{
+      display:block;
+      margin: 0 0 8px;
+  color: var(--text-muted);
+      font-weight: 850;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .field input[type="text"],
+    .field input[type="number"],
+    .field select{
+      width: 100%;
+      padding: 12px 12px;
+      border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+      color: var(--text);
+      outline:none;
+      font-weight: 750;
+    }
+  .field input::placeholder{ color: var(--text-faint); }
+    .field input:focus,
+    .field select:focus{
+      border-color: rgba(74,163,255,.8);
+      box-shadow: 0 0 0 4px rgba(74,163,255,.16);
+    }
+
+    .form-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 12px; }
+    .form-row2 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 12px; }
+    @media (max-width: 980px) {
+      .form-row { grid-template-columns: 1fr; }
+      .form-row2 { grid-template-columns: 1fr; }
+      table { min-width: 720px; }
+    }
+    /* Top navbar (theme-aware) */
+    .top-nav{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      margin-top: 2px;
+    }
+    .top-nav-inner{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: color-mix(in oklab, var(--card) 78%, transparent);
+      border: 1px solid var(--stroke);
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      max-width: 100%;
+      overflow:auto;
+    }
+    .top-nav a{
+      text-decoration:none;
+      display:inline-flex;
+      align-items:center;
+      padding: 10px 14px;
+      border-radius: 999px;
+  color: var(--text-soft);
+      font-weight: 700; /* reduced */
+      letter-spacing: .01em;
+      white-space: nowrap;
+      border: 1px solid transparent;
+      transition: background .12s ease, border-color .12s ease, transform .12s ease, color .12s ease;
+    }
+    .top-nav a:hover{
+      background: var(--glass);
+      border-color: var(--stroke);
+      transform: translateY(-1px);
+      color: var(--text-strong);
+    }
+    .top-nav a.active{
+      background: linear-gradient(135deg, rgba(47,107,255,.92), rgba(74,163,255,.92));
+      color: #071225;
+      border-color: rgba(255,255,255,.14);
+      box-shadow: 0 12px 26px rgba(47,107,255,.22);
+      font-weight: 800;
+    }
+    .top-nav .sep{
+      height: 22px;
+      width: 1px;
+      background: var(--stroke);
+      margin: 0 2px;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg"></div>
+
+  {% include '_navbar.html' %}
+
+  <div class="container">
+    <div class="card pad anim-fade-up anim-d1" style="margin-top: 14px;">
+      <div class="toolbar">
+        <div>
+          <h1 class="page-title">Employees Directory</h1>
+          <p class="page-sub">Select fields, apply filters, and download as CSV.</p>
+        </div>
+        <div class="chips" id="selectedFieldsChips"></div>
+      </div>
+
+      {% if error %}
+        <div class="toast error" style="margin-top: 12px;">
+          <div style="font-weight:700;">Error</div>
+          <div class="muted" style="margin-top:6px; white-space: pre-wrap;">{{ error }}</div>
+        </div>
+      {% endif %}
+
+      <form id="employeesForm" method="post" action="{{ url_for('employees') }}" style="margin-top: 14px;">
+        <!-- Put Fields + Actions first (requested) -->
+        <div class="top-grid anim-fade-up anim-d2" style="margin-bottom: 12px;">
+          <div class="picker" id="fieldPicker" style="isolation:isolate;">
+            <div class="field">
+              <label>Fields</label>
+              <div style="display:flex; gap: 10px;">
+                <button class="btn wide" type="button" id="togglePickerBtn">
+                  <span>Choose fields</span>
+                  <span class="muted" id="selectedCount"></span>
+                </button>
+                <button class="btn ghost" type="button" id="selectDefaultBtn">Default</button>
+              </div>
+            </div>
+
+            <div class="picker-menu" id="pickerMenu" aria-label="Fields menu">
+              <div class="field" style="margin-bottom: 8px;">
+                <input type="text" id="fieldSearch" placeholder="Search fields..." />
+              </div>
+              <div class="picker-actions">
+                <button class="btn ghost" type="button" id="selectAllBtn">Select all</button>
+                <button class="btn ghost" type="button" id="clearAllBtn">Clear</button>
+              </div>
+              <div class="picker-list" id="pickerList">
+                {% for key, label in available_fields %}
+                <div class="picker-item" data-key="{{ key }}" data-label="{{ label }}">
+                  <input type="checkbox" id="fld_{{ key }}" value="{{ key }}" {% if key in selected_fields %}checked{% endif %} />
+                  <label for="fld_{{ key }}"><strong>{{ label }}</strong> <span class="muted">({{ key }})</span></label>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
+          <div class="card pad actions-card">
+            <div class="section-title">Actions</div>
+            <div class="section-sub">Download uses same filters & field selection.</div>
+            <div class="actions-row">
+              <button class="btn" type="submit">Apply</button>
+              <button class="btn ghost" type="button" id="downloadCsvBtn">Download CSV</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-card anim-fade-up anim-d3">
+          <div class="filters-head">
+            <div>
+              <div class="filters-title">Filters</div>
+              <div class="filters-sub">Start typing to get dropdown suggestions.</div>
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-top: 12px;">
+            <div class="field">
+              <label>Search (Name / Email / UPN)</label>
+              <div class="field-hint">e.g. Username@company.com</div>
+              <div class="searchWrap">
+                <input type="text" id="empSearchBox" name="search" value="{{ search or '' }}" placeholder="e.g. Username@company.com" autocomplete="off" />
+                <div id="empSuggestions" class="suggestions" style="display:none;"></div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Department</label>
+              <div class="field-hint">e.g. IT</div>
+              <div class="searchWrap">
+                <input type="text" id="deptSearchBox" name="department" value="{{ department or '' }}" placeholder="e.g. IT" autocomplete="off" />
+                <div id="deptSuggestions" class="suggestions" style="display:none;"></div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Max rows</label>
+              <div class="field-hint">Default: 500</div>
+              <select name="max_items" id="maxItemsSelect">
+                <option value="500" {% if (max_items or 500) == 500 %}selected{% endif %}>500 (default)</option>
+                <option value="1000" {% if max_items == 1000 %}selected{% endif %}>1000</option>
+                <option value="2000" {% if max_items == 2000 %}selected{% endif %}>2000</option>
+                <option value="5000" {% if max_items == 5000 %}selected{% endif %}>5000</option>
+                <option value="0" {% if max_items == 0 %}selected{% endif %}>All rows</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row2">
+            <div class="field">
+              <label>Company</label>
+              <div class="field-hint">e.g. Contoso</div>
+              <div class="searchWrap">
+                <input type="text" id="companySearchBox" name="company" value="{{ company or '' }}" placeholder="e.g. Contoso" autocomplete="off" />
+                <div id="companySuggestions" class="suggestions" style="display:none;"></div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Office Location</label>
+              <div class="field-hint">e.g. HQ</div>
+              <div class="searchWrap">
+                <input type="text" id="officeSearchBox" name="office_location" value="{{ office_location or '' }}" placeholder="e.g. HQ" autocomplete="off" />
+                <div id="officeSuggestions" class="suggestions" style="display:none;"></div>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Country</label>
+              <div class="field-hint">e.g. India</div>
+              <div class="searchWrap">
+                <input type="text" id="countrySearchBox" name="country" value="{{ country or '' }}" placeholder="e.g. India" autocomplete="off" />
+                <div id="countrySuggestions" class="suggestions" style="display:none;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row2" style="margin-top:12px;">
+            <div class="field">
+              <label>City</label>
+              <div class="field-hint">e.g. Bengaluru</div>
+              <div class="searchWrap">
+                <input type="text" id="citySearchBox" name="city" value="{{ city or '' }}" placeholder="e.g. Bengaluru" autocomplete="off" />
+                <div id="citySuggestions" class="suggestions" style="display:none;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hidden field inputs populated by JS -->
+        <div id="fieldsInputs"></div>
+      </form>
+
+  <div class="card pad anim-fade-up anim-d2" style="margin-top: 14px;">
+        <div style="display:flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: center;">
+          <div style="font-weight:800;">Results</div>
+          <div class="muted">{{ (rows|length) if rows else 0 }} row(s)</div>
+        </div>
+        <div class="table-wrap" style="margin-top: 12px;">
+          <table>
+            <thead>
+              <tr>
+                {% for f in selected_fields %}
+                  <th>{{ f }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% if rows %}
+                {% for r in rows %}
+                  <tr>
+                    {% for f in selected_fields %}
+                      <td>{{ r.get(f, '') }}</td>
+                    {% endfor %}
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="{{ selected_fields|length }}" class="muted">No data returned.</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const picker = document.getElementById('fieldPicker');
+      const toggleBtn = document.getElementById('togglePickerBtn');
+      const menu = document.getElementById('pickerMenu');
+      const list = document.getElementById('pickerList');
+      const search = document.getElementById('fieldSearch');
+      const selectedCount = document.getElementById('selectedCount');
+      const chips = document.getElementById('selectedFieldsChips');
+      const fieldsInputs = document.getElementById('fieldsInputs');
+
+      const DEFAULT_FIELDS = ['displayName','mail','jobTitle','department'];
+
+      function getItems(){
+        return Array.from(list.querySelectorAll('.picker-item'));
+      }
+
+      function getSelected(){
+        return getItems()
+          .map(it => ({
+            key: it.dataset.key,
+            label: it.dataset.label,
+            checked: it.querySelector('input[type="checkbox"]').checked
+          }))
+          .filter(x => x.checked);
+      }
+
+      function syncHiddenInputs(){
+        fieldsInputs.innerHTML = '';
+        for (const s of getSelected()) {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'fields';
+          input.value = s.key;
+          fieldsInputs.appendChild(input);
+        }
+      }
+
+      function renderChips(){
+        const sel = getSelected();
+        selectedCount.textContent = sel.length ? `${sel.length} selected` : 'none selected';
+        chips.innerHTML = '';
+        for (const s of sel) {
+          const chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.textContent = s.label;
+          chips.appendChild(chip);
+        }
+      }
+
+      function applySearchFilter(){
+        const q = (search.value || '').toLowerCase().trim();
+        for (const it of getItems()) {
+          const text = (it.dataset.label + ' ' + it.dataset.key).toLowerCase();
+          it.style.display = (!q || text.includes(q)) ? '' : 'none';
+        }
+      }
+
+      function setSelected(keys){
+        const set = new Set(keys);
+        for (const it of getItems()) {
+          it.querySelector('input[type="checkbox"]').checked = set.has(it.dataset.key);
+        }
+        syncHiddenInputs();
+        renderChips();
+      }
+
+      function positionMenu(){
+        // Fixed-position portal: anchor to the toggle button
+        const r = toggleBtn.getBoundingClientRect();
+        const margin = 8;
+
+        // Set a width based on button width (clamped)
+        const w = Math.min(Math.max(r.width, 420), 720);
+        menu.style.width = w + 'px';
+
+        // Left: try align with button, but keep within viewport
+        let left = r.left;
+        left = Math.min(left, window.innerWidth - w - 16);
+        left = Math.max(16, left);
+
+        // Top: below button; if not enough space, open upward
+        const menuHeight = menu.offsetHeight || 420;
+        const belowTop = r.bottom + margin;
+        const aboveTop = r.top - margin - menuHeight;
+
+        let top = belowTop;
+        if (belowTop + menuHeight > window.innerHeight && aboveTop > 16) {
+          top = Math.max(16, aboveTop);
+        }
+
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+      }
+
+      // Toggle
+      toggleBtn.addEventListener('click', () => {
+        picker.classList.toggle('open');
+        if (picker.classList.contains('open')) {
+          positionMenu();
+          search.focus();
+        }
+      });
+
+      // Keep anchored on resize/scroll
+      window.addEventListener('resize', () => {
+        if (picker.classList.contains('open')) positionMenu();
+      });
+      window.addEventListener('scroll', () => {
+        if (picker.classList.contains('open')) positionMenu();
+      }, { passive: true });
+
+      // Close on outside click
+      document.addEventListener('click', (e) => {
+        if (!picker.contains(e.target)) picker.classList.remove('open');
+      });
+
+      // Checkbox changes
+      list.addEventListener('change', (e) => {
+        if (e.target && e.target.matches('input[type="checkbox"]')) {
+          syncHiddenInputs();
+          renderChips();
+        }
+      });
+
+      // Search
+      search.addEventListener('input', applySearchFilter);
+
+      // Buttons
+      document.getElementById('selectAllBtn').addEventListener('click', () => {
+        setSelected(getItems().map(it => it.dataset.key));
+      });
+      document.getElementById('clearAllBtn').addEventListener('click', () => {
+        setSelected([]);
+      });
+      document.getElementById('selectDefaultBtn').addEventListener('click', () => {
+        setSelected(DEFAULT_FIELDS);
+      });
+
+      // Download CSV: same form but different action
+      document.getElementById('downloadCsvBtn').addEventListener('click', () => {
+        const form = document.getElementById('employeesForm');
+        const prevAction = form.action;
+        form.action = "{{ url_for('employees_export_csv') }}";
+        form.submit();
+        form.action = prevAction;
+      });
+
+      // Init
+      syncHiddenInputs();
+      renderChips();
+      applySearchFilter();
+
+      // Live user suggestions for the Search field (name/mail/upn)
+      (function initEmployeeSuggestions(){
+        const box = document.getElementById('empSearchBox');
+        const panel = document.getElementById('empSuggestions');
+        if (!box || !panel) return;
+
+        let last = [];
+        function hide(){ panel.style.display = 'none'; panel.innerHTML = ''; }
+
+        function render(list){
+          panel.innerHTML = '';
+          last = (list || []).slice(0, 25);
+          if (!last.length) { hide(); return; }
+
+          for (const u of last) {
+            const item = document.createElement('div');
+            item.className = 'suggestionItem';
+            item.setAttribute('role','button');
+            item.tabIndex = 0;
+
+            const name = document.createElement('div');
+            name.className = 'suggestionName';
+            name.textContent = u.displayName || u.mail || u.userPrincipalName || '(no name)';
+
+            const meta = document.createElement('div');
+            meta.className = 'suggestionMeta';
+            meta.textContent = [u.mail || u.userPrincipalName, u.jobTitle].filter(Boolean).join(' • ');
+
+            item.appendChild(name);
+            item.appendChild(meta);
+
+            const selectThis = () => {
+              const val = u.mail || u.userPrincipalName || '';
+              if (val) box.value = val;
+              hide();
+            };
+
+            item.addEventListener('mousedown', (e) => { e.preventDefault(); selectThis(); });
+            item.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); selectThis(); } });
+            panel.appendChild(item);
+          }
+          panel.style.display = 'block';
+        }
+
+        function debounce(fn, wait){
+          let t;
+          return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
+        }
+
+        async function fetchSuggestions(q){
+          const t = (q || '').trim();
+          if (!t) return [];
+          const res = await fetch(`{{ url_for('user_search') }}?q=${encodeURIComponent(t)}&limit=25`);
+          const data = await res.json();
+          if (!data.ok) throw new Error(data.error || 'Search failed');
+          return data.items || [];
+        }
+
+        const onInput = debounce(async () => {
+          const q = (box.value || '').trim();
+          if (!q) { hide(); return; }
+          try {
+            const items = await fetchSuggestions(q);
+            render(items);
+          } catch {
+            hide();
+          }
+        }, 220);
+
+        box.addEventListener('input', () => onInput());
+        box.addEventListener('focus', () => onInput());
+        box.addEventListener('blur', () => setTimeout(hide, 140));
+        document.addEventListener('click', (e) => {
+          if (!panel.contains(e.target) && e.target !== box) hide();
+        });
+      })();
+
+      // Live department suggestions
+      (function initDepartmentSuggestions(){
+        const box = document.getElementById('deptSearchBox');
+        const panel = document.getElementById('deptSuggestions');
+        if (!box || !panel) return;
+
+        function hide(){ panel.style.display = 'none'; panel.innerHTML = ''; }
+
+        function render(list){
+          panel.innerHTML = '';
+          const items = (list || []).slice(0, 25);
+          if (!items.length) { hide(); return; }
+
+          for (const nameStr of items) {
+            const d = String(nameStr || '').trim();
+            if (!d) continue;
+            const item = document.createElement('div');
+            item.className = 'suggestionItem';
+            item.setAttribute('role','button');
+            item.tabIndex = 0;
+
+            const name = document.createElement('div');
+            name.className = 'suggestionName';
+            name.textContent = d;
+
+            const meta = document.createElement('div');
+            meta.className = 'suggestionMeta';
+            meta.textContent = 'Department';
+
+            item.appendChild(name);
+            item.appendChild(meta);
+
+            const selectThis = () => {
+              box.value = d;
+              hide();
+            };
+
+            item.addEventListener('mousedown', (e) => { e.preventDefault(); selectThis(); });
+            item.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); selectThis(); } });
+            panel.appendChild(item);
+          }
+          panel.style.display = 'block';
+        }
+
+        function debounce(fn, wait){
+          let t;
+          return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
+        }
+
+        async function fetchSuggestions(q){
+          const t = (q || '').trim();
+          if (!t) return [];
+          const res = await fetch(`{{ url_for('department_search') }}?q=${encodeURIComponent(t)}&limit=25`, {
+            headers: { 'Accept': 'application/json' }
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) throw new Error(data.error || 'Search failed');
+          return data.items || [];
+        }
+
+        const onInput = debounce(async () => {
+          const q = (box.value || '').trim();
+          if (!q) { hide(); return; }
+          try {
+            const items = await fetchSuggestions(q);
+            render(items);
+          } catch {
+            hide();
+          }
+        }, 220);
+
+        box.addEventListener('input', () => onInput());
+        box.addEventListener('focus', () => onInput());
+        box.addEventListener('blur', () => setTimeout(hide, 140));
+        document.addEventListener('click', (e) => {
+          if (!panel.contains(e.target) && e.target !== box) hide();
+        });
+      })();
+
+      function initSimpleTextSuggestions(opts){
+        const box = document.getElementById(opts.inputId);
+        const panel = document.getElementById(opts.panelId);
+        if (!box || !panel) return;
+
+        function hide(){ panel.style.display = 'none'; panel.innerHTML = ''; }
+
+        function render(list){
+          panel.innerHTML = '';
+          const items = (list || []).slice(0, 25);
+          if (!items.length) { hide(); return; }
+
+          for (const nameStr of items) {
+            const d = String(nameStr || '').trim();
+            if (!d) continue;
+            const item = document.createElement('div');
+            item.className = 'suggestionItem';
+            item.setAttribute('role','button');
+            item.tabIndex = 0;
+
+            const name = document.createElement('div');
+            name.className = 'suggestionName';
+            name.textContent = d;
+
+            const meta = document.createElement('div');
+            meta.className = 'suggestionMeta';
+            meta.textContent = opts.meta || '';
+
+            item.appendChild(name);
+            item.appendChild(meta);
+
+            const selectThis = () => {
+              box.value = d;
+              hide();
+            };
+
+            item.addEventListener('mousedown', (e) => { e.preventDefault(); selectThis(); });
+            item.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); selectThis(); } });
+            panel.appendChild(item);
+          }
+          panel.style.display = 'block';
+        }
+
+        function debounce(fn, wait){
+          let t;
+          return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
+        }
+
+        async function fetchSuggestions(q){
+          const t = (q || '').trim();
+          if (!t) return [];
+          const res = await fetch(`${opts.url}?q=${encodeURIComponent(t)}&limit=25`, { headers: { 'Accept': 'application/json' }});
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) throw new Error(data.error || 'Search failed');
+          return data.items || [];
+        }
+
+        const onInput = debounce(async () => {
+          const q = (box.value || '').trim();
+          if (!q) { hide(); return; }
+          try {
+            const items = await fetchSuggestions(q);
+            render(items);
+          } catch {
+            hide();
+          }
+        }, 220);
+
+        box.addEventListener('input', () => onInput());
+        box.addEventListener('focus', () => onInput());
+        box.addEventListener('blur', () => setTimeout(hide, 140));
+        document.addEventListener('click', (e) => {
+          if (!panel.contains(e.target) && e.target !== box) hide();
+        });
+      }
+
+      // Live suggestions for additional filters
+      initSimpleTextSuggestions({
+        inputId: 'companySearchBox',
+        panelId: 'companySuggestions',
+        url: `{{ url_for('company_search') }}`,
+        meta: 'Company'
+      });
+      initSimpleTextSuggestions({
+        inputId: 'officeSearchBox',
+        panelId: 'officeSuggestions',
+        url: `{{ url_for('office_location_search') }}`,
+        meta: 'Office Location'
+      });
+      initSimpleTextSuggestions({
+        inputId: 'citySearchBox',
+        panelId: 'citySuggestions',
+        url: `{{ url_for('city_search') }}`,
+        meta: 'City'
+      });
+      initSimpleTextSuggestions({
+        inputId: 'countrySearchBox',
+        panelId: 'countrySuggestions',
+        url: `{{ url_for('country_search') }}`,
+        meta: 'Country'
+      });
+
+    })();
+  </script>
+</body>
+</html>
